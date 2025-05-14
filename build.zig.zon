@@ -1,0 +1,29 @@
+.{
+    .name = .guessquest_server,
+    .version = "0.1.0",
+    .fingerprint = 0x77cb8245c95d6a5, // Changing this has security and trust implications.
+    .minimum_zig_version = "0.15.1",
+    .dependencies = .{
+        .websocket = .{ // zig fetch --save 'git+https://github.com/karlseguin/websocket.zig#91ca9c501066144fa95a52237da110812e9aa145'
+            .url = "git+https://github.com/karlseguin/websocket.zig#91ca9c501066144fa95a52237da110812e9aa145",
+            .hash = "websocket-0.1.0-ZPISdRNzAwAGszh62EpRtoQxu8wb1MSMVI6Ow0o2dmyJ",
+        },
+        .zul = .{
+            .url = "git+https://github.com/karlseguin/zul#e770047f208cf4538fcd9fc64550c84fd5492fc4",
+            .hash = "zul-0.0.0-1oDot9yRBwDA_ovd6GC1M_ViW3LarywMaGrH6vcuEjqv",
+        },
+        .zap = .{
+            .url = "git+https://github.com/zigzap/zap#76679f308c702cd8880201e6e93914e1d836a54b",
+            .hash = "zap-0.10.6-GoeB8w-EJABTkxyoGH_Z8oMBYMxTBvn7YWk-DrJOHuDO",
+        },
+        .httpz = .{
+            .url = "git+https://github.com/karlseguin/http.zig#9ef2ffe8d611ff2e1081e5cf39cb4632c145c5b9",
+            .hash = "httpz-0.0.0-PNVzrIowBwAFr_kqBN1W4KBMC2Ofutasj2ZfNAIcfTzF",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "server.zig",
+    },
+}

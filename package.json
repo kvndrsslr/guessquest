@@ -1,0 +1,61 @@
+{
+	"name": "guess-quest",
+	"private": true,
+	"version": "0.0.0",
+	"type": "module",
+	"license": "MIT",
+	"author": {
+		"name": "Kevin Dreßler"
+	},
+	"scripts": {
+		"dev": "npm-run-all --parallel dev:frontend dev:backend",
+		"dev:frontend": "vite dev",
+		"dev:backend": "zig build start",
+		"build": "npm-run-all --serial build:frontend build:backend",
+		"build:ci": "npm-run-all --serial build:frontend build:backend:ci",
+		"build:all": "npm-run-all --serial build:frontend build:backend:all",
+		"build:frontend": "vite build",
+		"build:backend": "zig build --release=fast",
+		"build:backend:ci": "zig build --release=fast -Dtarget=aarch64-linux",
+		"build:backend:all": "zig build all",
+		"preview": "./zig-out/bin/guessquest-server",
+		"prepare": "svelte-kit sync || echo ''",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+		"format": "prettier --write .",
+		"lint": "prettier --check . && eslint .",
+		"deps": "ncu --peer --interactive --install always",
+		"deps:min": "npm run deps -- --minimal"
+	},
+	"devDependencies": {
+		"@eslint/compat": "^2.0.1",
+		"@eslint/js": "^9.39.2",
+		"@fontsource/medievalsharp": "^5.2.8",
+		"@lucide/svelte": "^0.562.0",
+		"@sveltejs/adapter-static": "^3.0.10",
+		"@sveltejs/kit": "^2.49.4",
+		"@sveltejs/vite-plugin-svelte": "^6.2.4",
+		"bits-ui": "^2.15.4",
+		"cross-env": "^10.1.0",
+		"emoji-picker-element": "^1.28.1",
+		"eslint": "^9.39.2",
+		"eslint-config-prettier": "^10.1.8",
+		"eslint-plugin-svelte": "^3.14.0",
+		"globals": "^17.0.0",
+		"npm-check-updates": "^19.3.1",
+		"npm-run-all": "^4.1.5",
+		"phosphor-svelte": "^3.0.1",
+		"prettier": "^3.7.4",
+		"prettier-plugin-svelte": "^3.4.1",
+		"sass-embedded": "^1.97.2",
+		"svelte": "^5.46.3",
+		"svelte-check": "^4.3.5",
+		"typescript": "^5.9.3",
+		"typescript-eslint": "^8.53.0",
+		"vite": "^7.3.1",
+		"vite-plugin-devtools-json": "^1.0.0"
+	},
+	"volta": {
+		"node": "25.2.1"
+	}
+}

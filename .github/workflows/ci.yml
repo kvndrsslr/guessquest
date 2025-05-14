@@ -1,0 +1,58 @@
+name: CI
+permissions:
+  actions: read
+on:
+  push:
+    branches: main
+    tags-ignore:
+      - '**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 25
+          cache: npm
+
+      - run: npm ci
+
+      - name: build
+        run: npm run build:ci
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: guessquest-server-aarch64
+          path: zig-out/bin/guessquest-server
+
+  deploy:
+    needs: build
+    runs-on: self-hosted
+    steps:
+      - name: Setup Volta
+        run: |
+          export VOLTA_HOME="$HOME/.volta"
+          export PATH="$VOLTA_HOME/bin:$PATH"
+
+      - name: Download server binary
+        uses: actions/download-artifact@v7
+        with:
+          name: guessquest-server-aarch64
+          path: .
+
+      - name: Setup Executable
+        run: chmod +x guessquest-server && mv guessquest-server ~/sites/guessquest-server/guessquest-server
+
+      - name: Restart server
+        run: pm2 restart guessquest-server &>/dev/null
