@@ -123,7 +123,7 @@ export function useWebSocketServer(server) {
 					break;
 				case 'userUpdate':
 					ws['edited'] = room.revealed && parsedData['choice'] !== undefined;
-					ws['choice'] = parsedData['choice'] ?? ws['choice'];
+					ws['choice'] = parsedData['choice'] !== undefined ? parsedData['choice'] : ws['choice'];
 					ws['name'] = parsedData['name'] ?? ws['name'];
 					ws['hero'] = parsedData['hero'] ?? ws['hero'];
 					ws['spectator'] = parsedData['spectator'] ?? ws['spectator'];

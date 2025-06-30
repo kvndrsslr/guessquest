@@ -69,6 +69,10 @@ ws?.on('message', (data: any) => {
 			console.log('Poked', data.user, 'with:', data.pokedWith);
 			return;
 		case 'roomUpdate':
+			if (room.quest !== data.quest) {
+				// new quest started
+				resetChoice();
+			}
 			room.quest = data.quest;
 			room.questType = data.questType;
 			room.revealed = data.revealed;
@@ -173,12 +177,16 @@ export function reveal() {
 	});
 }
 
+function resetChoice() {
+	currentUser.choice = null;
+	currentUser.edited = false;
+}
+
 export function newQuest(questType?: QuestType) {
 	room.quest += 1;
 	room.questType = questType ?? QuestType.Fibonacci;
 	room.revealed = false;
-	currentUser.choice = null;
-	currentUser.edited = false;
+	resetChoice();
 
 	ws?.send({
 		type: 'newQuest',
