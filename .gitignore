@@ -8,6 +8,18 @@ node_modules
 /.svelte-kit
 /build
 
+# Zig build artifacts
+zig-out/
+.zig-cache/
+*.zig.zon.lock
+
+# Compiled object files and libraries
+*.o
+*.a
+*.so
+*.dll
+*.exe
+
 # OS
 .DS_Store
 Thumbs.db

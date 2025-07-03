@@ -5,15 +5,13 @@
 		id: number;
 		name: string;
 		choice: Choice | null | true;
-		editHero: (() => void) | undefined;
+		isCurrentUser?: boolean;
 	};
 
 	const props: HeroProps = $props();
 
 	let inputElement: HTMLInputElement | null = $state(null);
-	let mirrorElement: HTMLSpanElement;
-
-	let nameValue = $state(props.name);
+	let mirrorElement: HTMLSpanElement | null = $state(null);
 
 	let inputWidth = $state('50px'); // Initialize with min-width
 
@@ -21,7 +19,9 @@
 	$effect(() => {
 		if (inputElement && mirrorElement) {
 			mirrorElement.textContent =
-				inputElement.placeholder.length >= nameValue.length ? inputElement.placeholder : nameValue;
+				inputElement.placeholder.length >= currentUser.name.length
+					? inputElement.placeholder
+					: currentUser.name;
 			// Add a small buffer to the calculated width
 			inputWidth = `${mirrorElement.scrollWidth + 4}px`;
 		}
@@ -33,22 +33,16 @@
 	style={`background-image: url('/hero${props.id}.webp')`}
 	class:ready={props.choice}
 	onclick={(ev) => {
-		if (ev.target === ev.currentTarget) {
-			props.editHero?.();
+		if (props.isCurrentUser && ev.target === ev.currentTarget) {
+			currentUser.cycleHero();
 		}
 	}}
 >
-	{#if props.editHero}
+	{#if props.isCurrentUser}
 		<input
 			bind:this={inputElement}
 			type="text"
-			bind:value={nameValue}
-			onchange={(ev) => {
-				const input = ev.currentTarget;
-				if (input.value.length > 0) {
-					currentUser.name = input.value;
-				}
-			}}
+			bind:value={currentUser.name}
 			onkeydown={(ev) => {
 				if (ev.key === 'Enter') {
 					ev.currentTarget.blur();
@@ -58,15 +52,12 @@
 			placeholder="Name"
 			style={`width: ${inputWidth};`}
 		/>
+		<div bind:this={mirrorElement} class="name mirror" aria-hidden></div>
+	{:else}
+		<div class="name">
+			{props.name}
+		</div>
 	{/if}
-	<div
-		bind:this={mirrorElement}
-		class="name"
-		class:mirror={!!props.editHero}
-		aria-hidden={!!props.editHero}
-	>
-		{props.name}
-	</div>
 
 	{#if props.choice !== null && props.choice !== true}
 		<div class="choice" class:edited={currentUser.edited}>

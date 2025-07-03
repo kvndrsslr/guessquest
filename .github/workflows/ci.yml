@@ -1,19 +1,64 @@
 name: CI
 on:
   push:
-    branches:
-      - main
+    branches: main
+
 jobs:
-  build:
+  build_site:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # If you're using pnpm, add this step then change the commands and cache key below to use `pnpm`
+      # - name: Install pnpm
+      #   uses: pnpm/action-setup@v3
+      #   with:
+      #     version: 8
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: build
+        env:
+          BASE_PATH: '/${{ github.event.repository.name }}'
+        run: |
+          npm run build
+
+      - name: Upload Artifacts
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # this should match the `pages` option in your adapter-static options
+          path: 'build/'
+
+  deploy_site:
+    needs: build_site
+    runs-on: ubuntu-latest
+
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  deploy_server:
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
-      - run: |
-          export VOLTA_HOME="$HOME/.volta"
-          export PATH="$VOLTA_HOME/bin:$PATH"
-          npm ci
-          npm run build
-          pm2 stop guessquest &>/dev/null || true
-          rm -rf ~/sites/guessquest/ &>/dev/null
-          cp -r build ~/sites/guessquest &>/dev/null
-          pm2 start guessquest &>/dev/null
+      - run: ~/zig/zig build --release=fast
+        working-directory: server
+      - run: mv server/zig-out/bin/guessquest-server ~/sites/guessquest-server &>/dev/null
+      - run: $HOME/.volta/bin/pm2 restart guessquest-server &>/dev/null

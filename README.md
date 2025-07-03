@@ -17,7 +17,7 @@ Implemented in Svelte-kit with a custom WebSocket server for real-time collabora
 - [ ] Implement Countdown timer for voting phase
 - [ ] Prompt for user name on first open
 - [ ] Implement Timebox estimation mode (in Person Days, not Points)
-- [ ] Implement the WebSocket server in Zig + use adapter-static for SvelteKit
+- [x] Implement the WebSocket server in Zig + use adapter-static for SvelteKit
 - [ ] Add Mobile support ?
 
 ## Contributing

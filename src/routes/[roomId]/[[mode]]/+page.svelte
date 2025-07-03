@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { currentUser, newQuest, reveal, room, type Choice } from '$lib/app.svelte';
+	import { currentUser, room, type Choice } from '$lib/app.svelte';
 
 	import { useInactivityTimeout } from '$lib/useInactivityTimeout';
 	import { goto } from '$app/navigation';
@@ -8,6 +8,7 @@
 	import Monster from '$lib/components/Monster.svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { page } from '$app/state';
+	import { flip } from 'svelte/animate';
 
 	const options = [1, 2, 3, 5, 8, 13, 21, 34, '∞', '?'];
 
@@ -15,9 +16,40 @@
 	const md = new MediaQuery('(min-width: 860px)', false);
 	const sm = new MediaQuery('(min-width: 680px)', false);
 
-	const herosPerRow = $derived(2 + +lg.current + +md.current + +sm.current);
+	function sortByChoice(a: { choice: Choice | null }, b: { choice: Choice | null }) {
+		console.log('Sorting by choice:', a.choice, b.choice, typeof a.choice, typeof b.choice);
+		if (a.choice === null) return 1;
+		if (b.choice === null) return -1;
+		if (typeof a.choice === 'string' && typeof b.choice === 'string') {
+			return a.choice.localeCompare(b.choice);
+		}
+		if (typeof a.choice === 'number' && typeof b.choice === 'number') {
+			return a.choice - b.choice;
+		}
+		if (typeof a.choice === 'string') {
+			return 1;
+		}
+		if (typeof b.choice === 'string') {
+			return -1;
+		}
+		if (Array.isArray(a.choice) && Array.isArray(b.choice)) {
+			return a.choice[0] * a.choice[1] - b.choice[0] * b.choice[1];
+		}
+		return 0; // fallback for unexpected types
+	}
 
-	const rows = $derived(Math.ceil((room.otherUsers.length + 1) / herosPerRow));
+	let herosPerRow = $derived(2 + +lg.current + +md.current + +sm.current);
+	let rows = $derived(Math.ceil((room.otherUsers.length + 1) / herosPerRow));
+	let displayedUsers = $derived.by(() => {
+		const users = [currentUser.toUserData(), ...room.otherUsers].map((user, index) => ({
+			userId: index,
+			...user
+		}));
+		return room.revealed ? users.toSorted(sortByChoice) : users;
+	});
+	$effect(() => {
+		console.log('Displayed users:', displayedUsers);
+	});
 </script>
 
 <svelte:head>
@@ -30,17 +62,15 @@
 
 {#if room.connected}
 	<div class="hero-container" style={`--rows: ${rows}`}>
-		{#each [currentUser, ...room.otherUsers.values()] as { hero, name, choice }, index}
-			<Hero
-				id={hero}
-				name={name ?? 'Unnamed Hero'}
-				choice={room.revealed || choice === null ? choice : true}
-				editHero={index === 0
-					? () => {
-							currentUser.hero = (hero + 1) % 12;
-						}
-					: undefined}
-			/>
+		{#each displayedUsers as { hero, name, choice, userId } (userId)}
+			<div animate:flip>
+				<Hero
+					id={hero}
+					name={name ?? 'Unnamed Hero'}
+					choice={room.revealed || choice === null ? choice : true}
+					isCurrentUser={userId === 0}
+				/>
+			</div>
 		{/each}
 	</div>
 

@@ -16,7 +16,7 @@
 			window.localStorage.removeItem('name');
 		}
 		if (sessionName) {
-			goto(`./${sessionName}/${spectator ? 'spectator' : ''}`);
+			goto(`#/${sessionName}/${spectator ? 'spectator' : ''}`);
 		}
 	}
 </script>

@@ -14,6 +14,7 @@ export type UserData = {
 	hero: number;
 	choice: Choice;
 	spectator?: boolean;
+	edited?: boolean;
 };
 
 type RoomData = {
@@ -32,11 +33,32 @@ export const room: RoomData = $state({
 	otherUsers: []
 });
 
-const ws = browser
-	? new WebsocketClient(
-			`${window.location.protocol.startsWith('https') ? 'wss' : 'ws'}://${window.location.host}/ws`
-		)
-	: undefined;
+async function getWebSocketAddress() {
+	const publicUrl = `wss://ws-guessquest.kxfin.xyz`;
+
+	if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+		return publicUrl;
+	}
+
+	const localhostUrl = `ws://localhost:60355`;
+
+	const url = new Promise<string>((resolve) => {
+		const testSocket = new WebSocket(localhostUrl);
+		testSocket.onerror = () => {
+			resolve(publicUrl);
+		};
+		testSocket.onopen = () => {
+			setTimeout(() => {
+				testSocket.close();
+			}, 250);
+			resolve(localhostUrl);
+		};
+	});
+
+	return url;
+}
+
+const ws = browser ? new WebsocketClient(await getWebSocketAddress()) : undefined;
 
 let firstMessage = true;
 
@@ -47,7 +69,7 @@ ws?.on('connect', () => {
 		questType: room.questType,
 		name: currentUser.name,
 		hero: currentUser.hero,
-		choice: currentUser.choice
+		choice: JSON.stringify(currentUser.choice)
 	});
 });
 
@@ -64,7 +86,7 @@ ws?.on('message', (data: any) => {
 	switch (data.type) {
 		case 'pong':
 			return; // do not respond to pong here
-		case 'poked':
+		case 'poke':
 			// @todo implement poking
 			console.log('Poked', data.user, 'with:', data.pokedWith);
 			return;
@@ -76,7 +98,11 @@ ws?.on('message', (data: any) => {
 			room.quest = data.quest;
 			room.questType = data.questType;
 			room.revealed = data.revealed;
-			room.otherUsers = data.otherUsers;
+			room.otherUsers = data.otherUsers.map((user: UserData) => ({
+				...user,
+				choice: JSON.parse(user.choice as string)
+			}));
+
 			return;
 	}
 });
@@ -87,7 +113,7 @@ ws?.on('disconnect', () => {
 });
 
 class CurrentUser {
-	readonly spectator: boolean = browser ? page.params.mode === 'spectator' : false;
+	spectator: boolean = $derived(browser ? page.params.mode === 'spectator' : false);
 	#name: string = $state('Unknown Hero');
 	#hero: number = $state(0);
 	#choice: Choice | null = $state(null);
@@ -116,6 +142,10 @@ class CurrentUser {
 
 	get name(): string {
 		return this.#name;
+	}
+
+	cycleHero(): void {
+		this.hero = (this.#hero + 1) % 12;
 	}
 
 	set hero(hero: number) {
@@ -154,8 +184,18 @@ class CurrentUser {
 			type: 'userUpdate',
 			name: this.#name,
 			hero: this.#hero,
-			choice: this.#choice
+			choice: JSON.stringify(this.#choice)
 		});
+	}
+
+	toUserData(): UserData {
+		return {
+			name: this.#name,
+			hero: this.#hero,
+			choice: this.#choice,
+			spectator: this.spectator,
+			edited: this.edited
+		};
 	}
 }
 
