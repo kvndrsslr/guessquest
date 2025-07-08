@@ -48,7 +48,11 @@
 		return room.revealed ? users.toSorted(sortByChoice) : users;
 	});
 	$effect(() => {
-		console.log('Displayed users:', displayedUsers);
+		if (page.params.roomId.length > 18) {
+			goto(
+				`#/${page.params.roomId.substring(0, 18)}/${page.params.spectator === 'spectator' ? 'spectator' : ''}`
+			);
+		}
 	});
 </script>
 

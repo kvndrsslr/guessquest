@@ -1,15 +1,10 @@
-import { browser } from '$app/environment';
 import { page } from '$app/state';
-import { WebsocketClient } from 'lib0/websocket';
-
-export enum QuestType {
-	Fibonacci = 0,
-	PersonDays = 1
-}
+import { RoomType, NetworkClient } from '$lib/network';
 
 export type Choice = string | number | [number, number] | null;
 
 export type UserData = {
+	id: number;
 	name: string;
 	hero: number;
 	choice: Choice;
@@ -20,7 +15,7 @@ export type UserData = {
 type RoomData = {
 	connected: boolean;
 	quest: number;
-	questType: QuestType;
+	roomType: RoomType;
 	revealed: boolean;
 	otherUsers: UserData[];
 };
@@ -28,7 +23,7 @@ type RoomData = {
 export const room: RoomData = $state({
 	connected: false,
 	quest: 0,
-	questType: QuestType.Fibonacci,
+	roomType: RoomType.StoryPoints,
 	revealed: false,
 	otherUsers: []
 });
@@ -58,86 +53,31 @@ async function getWebSocketAddress() {
 	return url;
 }
 
-const ws = browser ? new WebsocketClient(await getWebSocketAddress()) : undefined;
-
-let firstMessage = true;
-
-ws?.on('connect', () => {
-	ws.send({
-		type: 'join',
-		roomId: page.params.roomId,
-		questType: room.questType,
-		name: currentUser.name,
-		hero: currentUser.hero,
-		choice: JSON.stringify(currentUser.choice)
-	});
-});
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-ws?.on('message', (data: any) => {
-	if (firstMessage) {
-		room.connected = true;
-		firstMessage = false;
-	}
-	if (!data?.type) {
-		console.warn('Received message without type:', data);
-		return;
-	}
-	switch (data.type) {
-		case 'pong':
-			return; // do not respond to pong here
-		case 'poke':
-			// @todo implement poking
-			console.log('Poked', data.user, 'with:', data.pokedWith);
-			return;
-		case 'roomUpdate':
-			if (room.quest !== data.quest) {
-				// new quest started
-				resetChoice();
-			}
-			room.quest = data.quest;
-			room.questType = data.questType;
-			room.revealed = data.revealed;
-			room.otherUsers = data.otherUsers.map((user: UserData) => ({
-				...user,
-				choice: JSON.parse(user.choice as string)
-			}));
-
-			return;
-	}
-});
-
-ws?.on('disconnect', () => {
-	room.connected = false;
-	firstMessage = true;
-});
+const net = new NetworkClient(await getWebSocketAddress());
 
 class CurrentUser {
-	spectator: boolean = $derived(browser ? page.params.mode === 'spectator' : false);
+	id: number = $state(0);
+	spectator: boolean = $derived(page.params.mode === 'spectator');
 	#name: string = $state('Unknown Hero');
 	#hero: number = $state(0);
 	#choice: Choice | null = $state(null);
 	edited = $state(false);
 
 	constructor() {
-		if (browser) {
-			const name = window.localStorage.getItem('name') ?? window.sessionStorage.getItem('name');
-			this.#name = name ?? this.#name;
+		const name = window.localStorage.getItem('name') ?? window.sessionStorage.getItem('name');
+		this.#name = name ?? this.#name;
 
-			const hero = window.localStorage.getItem('hero') ?? window.sessionStorage.getItem('hero');
-			this.#hero = hero ? parseInt(hero, 10) : Math.floor(Math.random() * 11.99);
-		}
+		const hero = window.localStorage.getItem('hero') ?? window.sessionStorage.getItem('hero');
+		this.#hero = hero ? parseInt(hero, 10) : Math.floor(Math.random() * 11.99);
 	}
 
 	set name(name: string) {
 		this.#name = name;
-		if (browser) {
-			if (window.localStorage.getItem('name')) {
-				window.localStorage.setItem('name', name);
-			}
-			window.sessionStorage.setItem('name', name);
+		if (window.localStorage.getItem('name')) {
+			window.localStorage.setItem('name', name);
 		}
-		this.#sendUpdate();
+		window.sessionStorage.setItem('name', name);
+		net.sendUpdateUserName({ name: this.#name });
 	}
 
 	get name(): string {
@@ -150,13 +90,11 @@ class CurrentUser {
 
 	set hero(hero: number) {
 		this.#hero = hero;
-		if (browser) {
-			if (window.localStorage.getItem('name')) {
-				window.localStorage.setItem('hero', hero.toString());
-			}
-			window.sessionStorage.setItem('hero', hero.toString());
+		if (window.localStorage.getItem('name')) {
+			window.localStorage.setItem('hero', hero.toString());
 		}
-		this.#sendUpdate();
+		window.sessionStorage.setItem('hero', hero.toString());
+		net.sendUpdateUserHero({ hero: this.#hero });
 	}
 
 	get hero(): number {
@@ -172,24 +110,21 @@ class CurrentUser {
 			this.edited = room.revealed;
 			this.#choice = choice;
 		}
-		this.#sendUpdate();
+		net.sendUpdateUserChoice({ choice: this.#choice });
+	}
+
+	resetChoice(): void {
+		this.#choice = null;
+		this.edited = false;
 	}
 
 	get choice(): Choice {
 		return this.#choice;
 	}
 
-	#sendUpdate(): void {
-		ws?.send({
-			type: 'userUpdate',
-			name: this.#name,
-			hero: this.#hero,
-			choice: JSON.stringify(this.#choice)
-		});
-	}
-
 	toUserData(): UserData {
 		return {
+			id: this.id,
 			name: this.#name,
 			hero: this.#hero,
 			choice: this.#choice,
@@ -202,34 +137,25 @@ class CurrentUser {
 export const currentUser = new CurrentUser();
 
 export function poke(user: number, pokedWith: string) {
-	// @todo implement poking
-	ws?.send({
-		type: 'poke',
-		user,
+	// TODO implement poking visually
+	net.sendPoke({
+		poked: user,
 		pokedWith
 	});
 }
 
 export function reveal() {
 	room.revealed = true;
-	ws?.send({
-		type: 'reveal'
-	});
+	net.sendReveal();
 }
 
-function resetChoice() {
-	currentUser.choice = null;
-	currentUser.edited = false;
-}
-
-export function newQuest(questType?: QuestType) {
+export function newQuest(roomType?: RoomType) {
 	room.quest += 1;
-	room.questType = questType ?? QuestType.Fibonacci;
+	room.roomType = roomType ?? RoomType.StoryPoints;
 	room.revealed = false;
-	resetChoice();
+	currentUser.resetChoice();
 
-	ws?.send({
-		type: 'newQuest',
-		questType
+	net.sendResetRoom({
+		roomType: room.roomType
 	});
 }

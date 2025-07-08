@@ -9,5 +9,8 @@ export default defineConfig({
 	plugins: [sveltekit(), devtoolsJson()],
 	build: {
 		target: 'esnext'
+	},
+	resolve: {
+		conditions: ['browser', 'module', 'import']
 	}
 });

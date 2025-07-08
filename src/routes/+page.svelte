@@ -26,7 +26,14 @@
 		<emoji-picker></emoji-picker>
 	{/if} -->
 	<!-- svelte-ignore a11y_autofocus -->
-	<input bind:value={sessionName} type="text" placeholder="Enter session name" autofocus required />
+	<input
+		bind:value={sessionName}
+		type="text"
+		placeholder="Enter room name"
+		maxlength="18"
+		autofocus
+		required
+	/>
 	<input bind:value={name} type="text" placeholder="Enter your name" required />
 	<label><input name="rememberMe" bind:checked={rememberMe} type="checkbox" />Remember me</label>
 	<label><input name="spectator" bind:checked={spectator} type="checkbox" />Join as spectator</label

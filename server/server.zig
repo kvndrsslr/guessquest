@@ -1,18 +1,23 @@
 const std = @import("std");
 const ws = @import("websocket");
+const msg = @import("message.zig");
 
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const Parsed = std.json.Parsed;
+const Mutex = std.Thread.Mutex;
+
+const Message = msg.Message;
+const RoomType = msg.RoomType;
+const Choice = msg.Choice;
+const UserData = msg.UserData;
 
 pub const std_options = std.Options{ .log_scope_levels = &[_]std.log.ScopeLevel{
     .{ .scope = .websocket, .level = .err },
 } };
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{
-        // .verbose_log = true,
-    }){};
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 
     const allocator = gpa.allocator();
 
@@ -36,6 +41,11 @@ pub fn main() !void {
     // this blocks
     try server.listen(&app);
 }
+
+const App = struct {
+    allocator: *const Allocator,
+    rooms: std.StringHashMap(*Room),
+};
 
 // This is your application-specific wrapper around a websocket connection
 const Handler = struct {
@@ -64,227 +74,226 @@ const Handler = struct {
         const app_allocator = self.app.allocator;
         const msg_allocator = allocator;
 
-        const parsed_msg = std.json.parseFromSlice(std.json.Value, msg_allocator, data, .{ .parse_numbers = false }) catch return;
-        const msg_type_wrapped = parsed_msg.value.object.get("type") orelse return;
-        const msg_type = std.meta.stringToEnum(MessageType, msg_type_wrapped.string) orelse .unknown;
+        // const parsed_msg = std.json.parseFromSlice(std.json.Value, msg_allocator, data, .{ .parse_numbers = false }) catch return;
+        // const msg_type_wrapped = parsed_msg.value.object.get("type") orelse return;
+        // const msg_type = std.meta.stringToEnum(MessageType, msg_type_wrapped.string) orelse .unknown;
 
-        if (msg_type != .join and self.room == null) {
-            std.log.warn("Received message of type {any} but no room is set.\n", .{msg_type});
+        const m = try Message.parse(data, msg_allocator);
+
+        if (m == .Ping) {
+            const writer = self.conn.writeBuffer(msg_allocator, .binary);
+            var pong = @as(Message, .Pong);
+            try pong.serialize(writer, 0);
             return;
         }
-        if (msg_type == .join and self.room != null) {
-            std.log.warn("Received join message but already in a room: {any}\n", .{msg_type});
+
+        if (m != .Join and self.room == null) {
+            std.log.warn("Received message of type {s} but no room is set.\n", .{@tagName(m)});
             return;
         }
-        switch (msg_type) {
-            .unknown => {
-                std.log.warn("Received message with unknown type: {any}\n", .{msg_type});
-                return;
-            },
-            .ping => {
-                self.conn.write("{\"type\":\"pong\"}") catch |err| {
-                    std.log.err("Error writing pong message: {any}\n", .{err});
-                };
-                return;
-            },
-            .poke => {
-                self.conn.write(data) catch |err| {
-                    std.log.err("Error writing poke message: {any}\n", .{err});
-                };
-                return;
-            },
-            .reveal => {
-                self.room.?.revealed = true;
-            },
-            .newQuest => {
-                const r = self.room.?;
-                const new_quest_msg = std.json.parseFromValue(NewQuestMessage, msg_allocator, parsed_msg.value, .{ .ignore_unknown_fields = true }) catch |err| {
-                    std.log.warn("Error parsing new quest message: {any}\n", .{err});
-                    return;
-                };
-                defer new_quest_msg.deinit();
 
-                r.revealed = false;
-                r.quest += 1;
-                if (new_quest_msg.value.questType) |quest_type| {
-                    r.questType = quest_type;
+        if (m == .Join and self.room != null) {
+            std.log.warn("Received join message but already in a room: {s}\n", .{@tagName(m)});
+            return;
+        }
+
+        if (m == .Join) {
+            const join_data = m.Join;
+            const writer = self.conn.writeBuffer(msg_allocator, .binary);
+
+            var rooms = &self.app.rooms;
+            const key = try app_allocator.dupe(u8, join_data.room_id);
+            const gop = try rooms.getOrPut(key);
+            if (!gop.found_existing) {
+                std.log.debug("Room {s} does not exist yet, creating a new one...", .{key});
+                const room = try app_allocator.create(Room);
+                gop.value_ptr.* = room;
+                room.* = try Room.init(app_allocator, key, join_data.room_type);
+            }
+
+            const room = gop.value_ptr.*;
+            self.room = room;
+            const user_id = room.addHandler(self) catch |err| {
+                if (err == Room.RoomError.RoomFull) {
+                    try self.conn.close(.{ .reason = "Room is full!" });
+                    return;
                 }
-                for (r.handlers.items) |handler| {
-                    if (handler.room == null) continue;
-                    handler.user_data.?.edited = false;
+                return err;
+            };
+
+            const room_arena = self.room.?.arena.allocator();
+
+            self.user_data = .{
+                .user_id = user_id,
+                .name = try room_arena.dupe(u8, join_data.name),
+                .hero = join_data.hero,
+                .choice = try join_data.choice.clone(room_arena),
+                .is_spectator = join_data.is_spectator,
+            };
+
+            std.log.debug("Assigned user id {d} to {s} in {s}", .{ user_id, self.user_data.?.name, self.room.?.room_id });
+
+            const users = try room.collectUsers(user_id);
+
+            var sync = Message{
+                .Sync = .{
+                    .is_revealed = room.revealed,
+                    .quest = room.quest,
+                    .room_type = room.room_type,
+                    .users = users,
+                },
+            };
+
+            std.log.debug("Sync msg: {any}\n Users: {any}", .{ sync, users });
+
+            try sync.serialize(writer, user_id);
+
+            const user_connected = Message{
+                .UserConnected = self.user_data.?,
+            };
+            try room.broadcastMessage(user_connected, self);
+
+            return;
+        }
+
+        const room = self.room.?;
+        const room_arena = room.arena.allocator();
+
+        switch (m) {
+            .Poke => {
+                // nothing to do, will just broadcast below
+            },
+            .Reveal => {
+                room.revealed = true;
+            },
+            .ResetRoom => |room_type| {
+                room.revealed = false;
+                room.quest += 1;
+                room.room_type = room_type;
+                for (room.handlers) |handler| {
+                    if (handler == null or handler.?.room == null) continue;
+                    var x = handler;
+                    x.?.user_data.?.choice = @as(Choice, .None);
+                    x.?.user_data.?.edited = false;
                 }
             },
-            .userUpdate => {
-                const update_msg = std.json.parseFromValue(UpdateUserMessage, msg_allocator, parsed_msg.value, .{ .ignore_unknown_fields = true }) catch |err| {
-                    std.log.warn("Error parsing user update message: {any}\n", .{err});
-                    return;
-                };
-                defer update_msg.deinit();
-                const room_arena = self.room.?.arena.allocator();
-                if (update_msg.value.name) |name| {
-                    self.user_data.?.name = try room_arena.dupe(u8, name);
-                }
-                if (update_msg.value.hero) |hero| {
-                    self.user_data.?.hero = hero;
-                }
-                if (update_msg.value.choice) |choice| {
-                    self.user_data.?.choice = try room_arena.dupe(u8, choice);
-                    self.user_data.?.edited = self.room.?.revealed;
-                }
-                if (update_msg.value.spectator) |spectator| {
-                    self.user_data.?.spectator = spectator;
-                }
+            .UpdateUserChoice => |choice| {
+                self.user_data.?.choice = try choice.clone(room_arena);
+                self.user_data.?.edited = true;
             },
-            .join => {
-                const join_msg = std.json.parseFromValue(JoinMessage, msg_allocator, parsed_msg.value, .{ .ignore_unknown_fields = true }) catch |err| {
-                    std.log.warn("Error parsing join message: {any}\n", .{err});
-                    return;
-                };
-                defer join_msg.deinit();
-                var map = &self.app.rooms;
-                const key = try app_allocator.dupe(u8, join_msg.value.roomId);
-                const gop = try map.getOrPut(key);
-                if (!gop.found_existing) {
-                    std.log.debug("Room {s} does not exist yet, creating a new one...", .{key});
-                    const room = try app_allocator.create(Room);
-                    gop.value_ptr.* = room;
-                    room.* = try Room.init(app_allocator, key, join_msg.value.questType);
-                }
-
-                self.room = gop.value_ptr.*;
-                const room_arena = self.room.?.arena.allocator();
-
-                self.user_data = .{
-                    .name = try room_arena.dupe(u8, join_msg.value.name),
-                    .hero = join_msg.value.hero,
-                    .choice = try room_arena.dupe(u8, join_msg.value.choice),
-                    .spectator = join_msg.value.spectator,
-                    .edited = false,
-                };
-                try self.room.?.handlers.append(self);
+            .UpdateUserName => |name| {
+                self.user_data.?.name = try room_arena.dupe(u8, name);
+            },
+            .UpdateUserHero => |hero| {
+                self.user_data.?.hero = hero;
+            },
+            .UpdateUserSpectator => |spectator| {
+                self.user_data.?.is_spectator = spectator;
+            },
+            else => {
+                return;
             },
         }
 
-        try self.room.?.broadcastRoomUpdate(self, msg_type);
+        try room.broadcastMessage(m, self);
     }
 };
 
-const QuestType = enum { Storypoints, PersonDay };
-
-const JoinMessage = struct {
-    roomId: []const u8,
-    questType: QuestType,
-    name: []const u8,
-    hero: u8,
-    choice: []const u8 = "null",
-    spectator: bool = false,
-};
-
-const UpdateUserMessage = struct {
-    name: ?[]const u8 = null,
-    hero: ?u8 = null,
-    choice: ?[]const u8 = null,
-    spectator: ?bool = null,
-};
-
-const NewQuestMessage = struct {
-    questType: ?QuestType = QuestType.Storypoints,
-};
-
-const App = struct {
-    allocator: *const Allocator,
-    rooms: std.StringHashMap(*Room),
-};
-
-const MessageType = enum { unknown, join, reveal, newQuest, userUpdate, poke, ping };
-
-const UserData = struct {
-    name: []const u8,
-    hero: u8,
-    choice: []const u8 = "null",
-    edited: bool = false,
-    spectator: bool = false,
-};
-
 const Room = struct {
-    roomId: []const u8,
-    questType: QuestType,
+    mutex: Mutex = Mutex{},
+    room_id: []const u8,
+    room_type: RoomType,
     quest: u8 = 0,
     revealed: bool = false,
-    handlers: std.ArrayList(*Handler),
+    handlers: [16]?*Handler = [_]?*Handler{null} ** 16, // max 16 users per room
     arena: *ArenaAllocator,
 
-    pub fn init(allocator: *const Allocator, room_id: []const u8, quest_type: QuestType) !Room {
+    pub fn init(allocator: *const Allocator, room_id: []const u8, room_type: RoomType) !Room {
         const arena = try allocator.create(std.heap.ArenaAllocator);
         arena.* = ArenaAllocator.init(allocator.*);
         return .{
-            .roomId = room_id,
-            .questType = quest_type,
-            .handlers = std.ArrayList(*Handler).init(arena.allocator()),
+            .room_id = room_id,
+            .room_type = room_type,
             .arena = arena,
         };
     }
 
-    pub fn broadcastRoomUpdate(self: *Room, current_handler: *const Handler, msg_type: MessageType) !void {
-        var users = try std.ArrayList(UserData).initCapacity(self.arena.child_allocator, self.handlers.items.len);
-        defer users.deinit();
-        for (self.handlers.items) |user| {
-            if (user.room == null) continue;
-            const u = user.user_data.?;
-            try users.append(.{
-                .name = u.name,
-                .hero = u.hero,
-                .choice = u.choice,
-                .edited = u.edited,
-                .spectator = u.spectator,
-            });
-        }
-
-        for (self.handlers.items) |handler| {
-            if (handler.room == null) continue;
-            if (handler != current_handler or msg_type == .join) {
-                const i = for (self.handlers.items, 0..) |other_handler, index| {
-                    if (other_handler == handler) break index;
-                } else 0;
-                var other_users = try users.clone();
-                defer other_users.deinit();
-                _ = other_users.orderedRemove(i);
-                var wb = handler.conn.writeBuffer(self.arena.child_allocator, .text);
-                defer wb.deinit();
-                try std.json.stringify(.{
-                    .type = "roomUpdate",
-                    .roomId = self.roomId,
-                    .questType = self.questType,
-                    .quest = self.quest,
-                    .revealed = self.revealed,
-                    .otherUsers = other_users.items,
-                }, .{}, wb.writer());
-                try wb.flush();
+    pub fn broadcastMessage(self: *Room, m: Message, current_handler: *const Handler) !void {
+        const alloc = self.arena.child_allocator;
+        for (self.handlers) |maybe_handler| {
+            if (maybe_handler) |handler| {
+                if (handler != current_handler and handler.room == self) {
+                    var writer = handler.conn.writeBuffer(alloc, .binary);
+                    defer writer.deinit();
+                    var mm = m;
+                    mm.serialize(writer, current_handler.user_data.?.user_id) catch |err| {
+                        std.log.err("Error serializing message {s} for handler: {any}", .{ @tagName(m), err });
+                        return err;
+                    };
+                }
             }
         }
     }
 
-    pub fn removeHandler(self: *Room, handler: *const Handler) void {
-        std.log.debug("Removing Handler from {s}", .{self.roomId});
-        if (self.handlers.items.len == 1) {
-            std.log.debug("Clearing up room {s}", .{self.roomId});
-            _ = handler.app.rooms.remove(self.roomId);
-            self.handlers.deinit();
+    const RoomError = error{
+        RoomFull,
+    };
+
+    pub fn addHandler(self: *Room, handler: *Handler) RoomError!u4 {
+        // self.mutex.lock();
+        // defer self.mutex.unlock();
+        for (self.handlers, 0..) |h, i| {
+            if (h == null) {
+                self.handlers[i] = handler;
+                return @as(u4, @intCast(i));
+            }
+        }
+        return RoomError.RoomFull;
+    }
+
+    pub fn removeHandler(self: *Room, handler: *Handler) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        std.log.debug("Removing Handler from {s}", .{self.room_id});
+        var n: u5 = 0;
+        for (self.handlers) |h| {
+            if (h != null) n += 1;
+        }
+        if (n == 1) {
+            std.log.debug("Clearing up room {s}", .{self.room_id});
+            _ = handler.app.rooms.remove(self.room_id);
             self.arena.deinit();
             handler.app.allocator.destroy(self);
-            handler.app.allocator.free(self.roomId);
+            handler.app.allocator.free(self.room_id);
             return;
         }
-        var handlers = &self.handlers;
-        for (handlers.items, 0..) |h, i| {
-            if (h == handler) {
-                _ = handlers.orderedRemove(i);
+        for (self.handlers, 0..) |h, i| {
+            if (h != null and h.? == handler) {
+                self.handlers[i] = null;
                 break;
             }
         }
-        self.broadcastRoomUpdate(handler, MessageType.unknown) catch |err| {
+        self.broadcastMessage(Message{ .UserDisconnected = handler.user_data.?.user_id }, handler) catch |err| {
             std.log.err("Error broadcasting room update: {any}", .{err});
         };
-        std.log.debug("Removed Handler, remaining: {any}", .{handlers.items.len});
+        std.log.debug("Removed Handler, remaining: {d}", .{n - 1});
+    }
+
+    pub fn collectUsers(self: *Room, user_id: u4) ![]UserData {
+        var users = std.ArrayList(UserData).init(self.arena.child_allocator);
+        for (self.handlers) |maybe_handler| {
+            if (maybe_handler) |handler| {
+                if (handler.room == self and handler.user_data.?.user_id != user_id) {
+                    try users.append(handler.user_data.?);
+                }
+            }
+        }
+        return try users.toOwnedSlice();
     }
 };
+
+const this = @This();
+
+test {
+    _ = msg; // reference msg module to add to tests
+}
