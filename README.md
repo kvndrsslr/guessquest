@@ -6,19 +6,18 @@
 Guess Quest is a simple open-source planning poker game that allows teams to estimate the effort required to complete a task.
 It's framed as a fantasy game where heroes (team members) must guess the difficulty of quests (tasks) to slay the complexity monster and rescue the cat princess.
 
-Implemented in Svelte-kit with a custom WebSocket server for real-time collaboration.
+Frontend implemented in Svelte-kit, WebSocket server implemented in Zig, custom binary protocol for very small bandwidth usage.
 
 ## Roadmap
 
-- [ ] Implement observer mode (including button to quickly open observer tab)
+- [x] Implement the WebSocket server in Zig + use adapter-static for SvelteKit
+- [ ] Implement spectator mode (including button to quickly open spectator tab)
 - [ ] Implement post-reveal display including vote distribution
 - [ ] Implement post-reveal mutation of votes
-- [ ] Implement Status text in top of page (e.g. "Waiting for all heroes to vote")
-- [ ] Implement Countdown timer for voting phase
+- [ ] Implement status text in top of page (e.g. "Waiting for all heroes to vote")
+- [ ] Implement countdown timer for voting phase
 - [ ] Prompt for user name on first open
-- [ ] Implement Timebox estimation mode (in Person Days, not Points)
-- [x] Implement the WebSocket server in Zig + use adapter-static for SvelteKit
-- [ ] Add Mobile support ?
+- [ ] Implement timebox estimation mode (in Person Days, not Points)
 
 ## Contributing
 
