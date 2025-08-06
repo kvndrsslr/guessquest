@@ -220,7 +220,7 @@ export class NetworkClient {
 				// No pong received, connection is likely broken
 				this.#ws?.close();
 			}, 2000);
-		}, 2000);
+		}, 20000);
 	}
 
 	#connect() {
