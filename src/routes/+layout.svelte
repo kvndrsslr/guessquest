@@ -20,8 +20,6 @@
 			.keys()
 			.map((key) => `/heroes/${key}.webp`),
 		'/logo-small-kitten.webp',
-		'/sword_still.webp',
-		'/sword_spin.webp',
 		'/cat-happy.webp',
 		'/cat-ok.webp',
 		'/monster.webp',

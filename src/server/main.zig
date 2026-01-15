@@ -29,7 +29,7 @@ pub const std_options = std.Options{
     .logFn = logWithTimestamp,
     .log_scope_levels = &[_]std.log.ScopeLevel{
         // Don't log websocket debug messages to reduce log size
-        .{ .scope = .websocket, .level = .err },
+        .{ .scope = .httpz, .level = .err },
         // Application specific logs
         .{ .scope = .app, .level = .info },
     },
@@ -61,7 +61,7 @@ pub fn main() !void {
         .thread_pool = .{
             .count = @intCast(std.Thread.getCpuCount() catch 2),
         },
-        .address = "127.0.0.1",
+        .address = "0.0.0.0",
         .request = .{
             .max_body_size = 1,
             .max_form_count = 1,
@@ -131,7 +131,7 @@ const App = struct {
 
         // You must define a public init function which takes
         pub fn init(conn: *ws.Conn, app: *App) !WebsocketHandler {
-            std.log.info("init websocket", .{});
+            std.log.debug("init websocket", .{});
             return .{
                 .app = app,
                 .conn = conn,

@@ -8,6 +8,9 @@ const config = {
 		runes: true
 	},
 	kit: {
+		output: {
+			bundleStrategy: 'single'
+		},
 		adapter: adapter({
 			pages: 'src/server/_static',
 			assets: 'src/server/_static'
