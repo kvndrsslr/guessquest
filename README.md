@@ -27,11 +27,28 @@ npm ci
 npm run build
 ```
 
+#### Using Docker
+
+You can also build and run Guess Quest using Docker. Here's how:
+
+```sh
+docker build -t guessquest .
+docker run -d -p 48377:48377 guessquest
+```
+
+#### Cross-Compiling the Zig Server Binary
+
 In order to cross-compile the Zig server binary for another platform just append the zig compiler parameters to the build command, e.g., for Linux ARM64:
 
 ```sh
 npm run build:backend -- -Dtarget=aarch64-linux
 ```
+
+## Hosting
+
+You can host the Guess Quest server on any machine that supports running the compiled binary.
+It is generally recommended to run the server behind a reverse proxy like Nginx or Caddy for better security and performance.
+An example Nginx configuration is provided in the repository.
 
 ## Roadmap
 
