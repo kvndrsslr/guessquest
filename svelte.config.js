@@ -9,7 +9,7 @@ const config = {
 	},
 	kit: {
 		output: {
-			bundleStrategy: 'single'
+			bundleStrategy: 'split'
 		},
 		adapter: adapter({
 			pages: 'src/server/_static',
