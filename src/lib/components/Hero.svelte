@@ -1,3 +1,17 @@
+<script module lang="ts">
+	export const heroImages = Object.fromEntries(
+		Object.entries(import.meta.glob('$lib/assets/heroes/*.webp', { eager: true }))
+			.map(([path, module]) => {
+				const match = path.match(/\/heroes\/(\d+)\.webp$/);
+				if (match) {
+					return [parseInt(match[1], 10), (module as { default: string }).default] as const;
+				}
+				return null;
+			})
+			.filter((a) => a !== null)
+	);
+</script>
+
 <script lang="ts">
 	import type { Choice } from '$lib/app.svelte';
 	import type { CurrentUser } from '$lib/CurrentUser.svelte';
@@ -33,7 +47,7 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
 	class="hero"
-	style={`background-image: url('/heroes/${id}.webp')`}
+	style={`background-image: url('${heroImages[id]}')`}
 	class:ready={choice}
 	onclick={(ev) => {
 		if (currentUser && ev.target === ev.currentTarget) {

@@ -29,7 +29,7 @@
 
 		pointer-events: all;
 		user-select: none;
-		background-image: url('/card.webp');
+		background-image: url('$lib/assets/card.webp');
 		background-repeat: no-repeat;
 		background-size: contain;
 		height: 136px;

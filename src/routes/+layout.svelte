@@ -1,5 +1,6 @@
 <script lang="ts">
 	import '@fontsource/medievalsharp';
+	import medievalSharpWoff2 from '@fontsource/medievalsharp/files/medievalsharp-latin-400-normal.woff2?url';
 	import { Tooltip } from 'bits-ui';
 	import { GithubIcon, CopyIcon, HatGlassesIcon, CheckIcon } from '@lucide/svelte';
 	import ActionTooltip from '$lib/components/ActionTooltip.svelte';
@@ -11,23 +12,27 @@
 	let copySuccess = $state(false);
 	let isQuest = $state(window.location.hash.length > 1);
 
+	import logoSmall from '$lib/assets/logo-small.webp';
+	import logoSmallKitten from '$lib/assets/logo-small-kitten.webp';
+	import catHappy from '$lib/assets/cat-happy.webp';
+	import catOk from '$lib/assets/cat-ok.webp';
+	import monster from '$lib/assets/monster.webp';
+	import card from '$lib/assets/card.webp';
+	import { heroImages } from '$lib/components/Hero.svelte';
+
 	beforeNavigate((nav) => {
 		isQuest = !!nav.to?.params?.roomId;
 	});
 
 	const loadOnMountImageUrls = [
-		...Array(32)
-			.keys()
-			.map((key) => `/heroes/${key}.webp`),
-		'/logo-small-kitten.webp',
-		'/cat-happy.webp',
-		'/cat-ok.webp',
-		'/monster.webp',
-		'/card.webp'
+		...Object.values(heroImages),
+		logoSmallKitten,
+		catOk,
+		catHappy,
+		monster,
+		card
 	];
 
-	const preloadImageUrls = ['/heroes/0.webp', '/logo-small.webp', '/background-noise.svg'];
-	// preload images on load
 	$effect(() => {
 		loadOnMountImageUrls.forEach((url) => {
 			const img = new Image();
@@ -37,20 +42,9 @@
 </script>
 
 <svelte:head>
-	<title>Guess Quest</title>
-	<meta name="description" content="A simple open-source planning poker game for Agile teams." />
-	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-	{#each preloadImageUrls as image}
+	{#each [logoSmall, medievalSharpWoff2] as image}
 		<link rel="preload" as="image" href={image} />
 	{/each}
-	<!-- Favicon for modern browsers -->
-	<link rel="icon" type="image/webp" href="/favicon.webp" />
-	<!-- Fallback PNG favicon -->
-	<link rel="icon" type="image/png" href="/favicon.png" />
-	<!-- Apple Touch Icon -->
-	<link rel="apple-touch-icon" sizes="180x180" href="/favicon-180.png" />
-	<!-- ICO format for legacy browsers -->
-	<link rel="icon" type="image/x-icon" href="/favicon.ico" />
 </svelte:head>
 
 <Tooltip.Provider>
@@ -59,7 +53,7 @@
 		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 		<img
 			id="logo"
-			src={`/logo-small${withKitten ? '-kitten' : ''}.webp`}
+			src={withKitten ? logoSmallKitten : logoSmall}
 			alt="GuessQuest Logo"
 			onclick={() => {
 				withKitten = !withKitten;
@@ -151,7 +145,7 @@
 				--shadow: rgba(0, 0, 0, 1);
 			}
 
-			cursor: url('/cursor.webp'), auto;
+			cursor: url('$lib/assets/cursor.webp?inline'), auto;
 
 			/* Style the scrollbars */
 			::-webkit-scrollbar {
@@ -184,8 +178,7 @@
 			padding: 0;
 			font-family: 'MedievalSharp', system-ui;
 			background-color: var(--bg);
-
-			background-image: url('/background-noise.svg');
+			background-image: url('$lib/assets/background-noise.svg?inline');
 			background-blend-mode: soft-light;
 			box-shadow: 0 0 22.5vw var(--shadow) inset;
 			min-height: 100dvh;

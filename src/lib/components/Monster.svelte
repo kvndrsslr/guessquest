@@ -61,7 +61,7 @@
 		transform: translateY(50px);
 		background-color: transparent;
 		border: none;
-		background-image: url('/monster.webp');
+		background-image: url('$lib/assets/monster.webp');
 		background-repeat: no-repeat;
 		background-size: contain;
 		background-position: center;
@@ -70,7 +70,7 @@
 		position: relative;
 
 		&.revealed {
-			background-image: url('/cat-ok.webp');
+			background-image: url('$lib/assets/cat-ok.webp');
 		}
 
 		.monster-hover-proxy {
