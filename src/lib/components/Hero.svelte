@@ -1,20 +1,7 @@
-<script module lang="ts">
-	export const heroImages = Object.fromEntries(
-		Object.entries(import.meta.glob('$lib/assets/heroes/*.webp', { eager: true }))
-			.map(([path, module]) => {
-				const match = path.match(/\/heroes\/(\d+)\.webp$/);
-				if (match) {
-					return [parseInt(match[1], 10), (module as { default: string }).default] as const;
-				}
-				return null;
-			})
-			.filter((a) => a !== null)
-	);
-</script>
-
 <script lang="ts">
 	import type { Choice } from '$lib/app.svelte';
 	import type { CurrentUser } from '$lib/CurrentUser.svelte';
+	import { heroImages } from '$lib/heroImages';
 
 	type HeroProps = {
 		id: number;

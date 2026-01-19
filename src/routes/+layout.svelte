@@ -18,7 +18,7 @@
 	import catOk from '$lib/assets/cat-ok.webp';
 	import monster from '$lib/assets/monster.webp';
 	import card from '$lib/assets/card.webp';
-	import { heroImages } from '$lib/components/Hero.svelte';
+	import { heroImages } from '$lib/heroImages';
 
 	beforeNavigate((nav) => {
 		isQuest = !!nav.to?.params?.roomId;
