@@ -52,16 +52,88 @@ fn addCachingHeaders(res: *httpz.Response, content_type: ?httpz.ContentType) voi
     }
 }
 
+fn printUsage() void {
+    const usage =
+        \\Usage: guessquest-server [OPTIONS]
+        \\
+        \\Start the GuessQuest WebSocket server.
+        \\
+        \\Options:
+        \\  -p <port>       Port number to bind to (default: 48377)
+        \\                  Must be a valid port number (1-65535)
+        \\
+        \\  -a <address>    IP address to bind to (default: 0.0.0.0)
+        \\                  Must be a valid IPv4 or IPv6 address
+        \\                  Examples: 127.0.0.1, 0.0.0.0, ::1
+        \\
+        \\  -h, --help      Display this help message and exit
+        \\
+        \\Examples:
+        \\  guessquest-server
+        \\      Start server on default address (0.0.0.0) and port (48377)
+        \\
+        \\  guessquest-server -p 8080
+        \\      Start server on port 8080
+        \\
+        \\  guessquest-server -a 127.0.0.1 -p 3000
+        \\      Start server on localhost port 3000
+        \\
+    ;
+    var buffer: [100]u8 = undefined;
+
+    var writer = std.fs.File.stdout().writer(&buffer);
+    _ = writer.interface.writeAll(usage) catch {};
+    _ = writer.interface.flush() catch {};
+}
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
 
+    // Parse command-line arguments
+    var port: u16 = 48377; // default port
+    var address: []const u8 = "0.0.0.0"; // default address
+    var args = try std.process.argsWithAllocator(allocator);
+    defer args.deinit();
+
+    // Skip the program name
+    _ = args.skip();
+
+    while (args.next()) |arg| {
+        if (std.mem.eql(u8, arg, "-h") or std.mem.eql(u8, arg, "--help")) {
+            printUsage();
+            return;
+        } else if (std.mem.eql(u8, arg, "-p")) {
+            if (args.next()) |port_str| {
+                port = std.fmt.parseInt(u16, port_str, 10) catch {
+                    std.log.err("Invalid port number: {s}", .{port_str});
+                    return error.InvalidPort;
+                };
+            } else {
+                std.log.err("Missing port number after -p option", .{});
+                return error.MissingPortArgument;
+            }
+        } else if (std.mem.eql(u8, arg, "-a")) {
+            if (args.next()) |addr_str| {
+                // Validate that it's a valid IP address
+                _ = std.net.Address.parseIp(addr_str, 0) catch {
+                    std.log.err("Invalid IP address: {s}", .{addr_str});
+                    return error.InvalidAddress;
+                };
+                address = addr_str;
+            } else {
+                std.log.err("Missing address after -a option", .{});
+                return error.MissingAddressArgument;
+            }
+        }
+    }
+
     const config = httpz.Config{
-        .port = 48377,
+        .port = port,
         .thread_pool = .{
             .count = @intCast(std.Thread.getCpuCount() catch 2),
         },
-        .address = "0.0.0.0",
+        .address = address,
         .request = .{
             .max_body_size = 1,
             .max_form_count = 1,
@@ -69,6 +141,7 @@ pub fn main() !void {
             .max_param_count = 1,
             .max_query_count = 1,
             .lazy_read_size = 1,
+            .buffer_size = 1024 * 16,
         },
     };
     var server = try httpz.Server(App).init(allocator, config, .{
@@ -76,7 +149,7 @@ pub fn main() !void {
         .rooms = std.StringHashMap(*App.Room).init(allocator),
     });
 
-    std.log.info("Starting server on http://127.0.0.1:48377", .{});
+    std.log.info("Starting server on http://{s}:{d}", .{ address, port });
     // start the server in the current thread, blocking.
     try server.listen();
 }

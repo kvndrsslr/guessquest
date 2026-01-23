@@ -44,6 +44,23 @@ In order to cross-compile the Zig server binary for another platform just append
 npm run build:backend -- -Dtarget=aarch64-linux
 ```
 
+## Running the Server
+
+The Guess Quest server binary can be run with the following command-line options:
+
+```sh
+./guessquest-server [OPTIONS]
+```
+
+### Command-Line Options
+
+- **`-p <port>`** - Port number to bind to (default: `48377`)
+  - Must be a valid port number (1-65535)
+- **`-a <address>`** - IP address to bind to (default: `0.0.0.0`)
+  - Must be a valid IPv4 or IPv6 address
+  - Examples: `127.0.0.1`, `0.0.0.0`, `::1`
+- **`-h, --help`** - Display help message and exit
+
 ## Hosting
 
 You can host the Guess Quest server on any machine that supports running the compiled binary.
