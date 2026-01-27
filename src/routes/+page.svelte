@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import Hero from '$lib/components/Hero.svelte';
 	import { CurrentUser } from '$lib/CurrentUser.svelte';
 
@@ -17,7 +18,7 @@
 		e.preventDefault();
 		const asSpectator = (e.submitter as HTMLButtonElement)?.hasAttribute('data-spectator');
 		if (sessionName) {
-			goto(`#/${sessionName}/${asSpectator ? 'spectator' : ''}`);
+			goto(resolve(`/${sessionName}/${asSpectator ? 'spectator' : ''}`));
 		}
 	}
 </script>

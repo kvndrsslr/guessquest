@@ -11,7 +11,11 @@
 		<button
 			class="monster-hover-proxy"
 			onclick={(ev) => {
-				room.revealed ? newQuest() : reveal();
+				if (room.revealed) {
+					newQuest();
+				} else {
+					reveal();
+				}
 				ev.currentTarget.blur();
 			}}
 			aria-label={label}

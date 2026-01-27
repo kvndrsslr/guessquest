@@ -20,6 +20,7 @@
 	// Use $effect to reactively update width when value or placeholder changes
 	$effect(() => {
 		if (inputElement && mirrorElement && currentUser) {
+			// eslint-disable-next-line svelte/no-dom-manipulating -- needed for measuring text width
 			mirrorElement.textContent =
 				inputElement.placeholder.length >= currentUser.name.length
 					? inputElement.placeholder

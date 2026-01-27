@@ -10,6 +10,7 @@
 	import { page } from '$app/state';
 	import { flip } from 'svelte/animate';
 	import CatGif from '$lib/components/CatGif.svelte';
+	import { resolve } from '$app/paths';
 
 	const options = [1, 2, 3, 5, 8, 13, 21, 34, '∞', '?'];
 
@@ -79,7 +80,9 @@
 	$effect(() => {
 		if (page.params.roomId!.length > 18) {
 			goto(
-				`#/${page.params.roomId!.substring(0, 18)}/${page.params?.mode === 'spectator' ? 'spectator' : ''}`
+				resolve(
+					`/${page.params.roomId!.substring(0, 18)}/${page.params?.mode === 'spectator' ? 'spectator' : ''}`
+				)
 			);
 		}
 	});
@@ -91,7 +94,9 @@
 	</title>
 </svelte:head>
 
-<svelte:body use:useInactivityTimeout={{ timeout: 1000 * 60 * 30, onTimeout: () => goto('/') }} />
+<svelte:body
+	use:useInactivityTimeout={{ timeout: 1000 * 60 * 30, onTimeout: () => goto(resolve('/')) }}
+/>
 
 {#if room.connected}
 	<div class="hero-container" style={`--rows: ${rows}`}>
@@ -116,7 +121,7 @@
 		</div>
 		{#if !currentUser.spectator}
 			<div class="choices">
-				{#each options ?? [] as option}
+				{#each options ?? [] as option (option)}
 					<Card choice={option} />
 				{/each}
 			</div>

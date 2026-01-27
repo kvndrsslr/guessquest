@@ -8,6 +8,7 @@
 
 	const calculateWidth = () => {
 		if (inputElement && mirrorElement) {
+			// eslint-disable-next-line svelte/no-dom-manipulating -- needed for measuring text width
 			mirrorElement.textContent = value || placeholder || ' ';
 			// Add a small buffer to the calculated width
 			inputWidth = `${mirrorElement.scrollWidth}px`;

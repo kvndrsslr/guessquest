@@ -42,7 +42,7 @@
 </script>
 
 <svelte:head>
-	{#each [logoSmall, medievalSharpWoff2] as image}
+	{#each [logoSmall, medievalSharpWoff2] as image, index (index)}
 		<link rel="preload" as="image" href={image} />
 	{/each}
 </svelte:head>
@@ -87,6 +87,7 @@
 				</ActionTooltip>
 				<ActionTooltip
 					onClick={() => {
+						// eslint-disable-next-line svelte/prefer-svelte-reactivity -- not a reactive value
 						const spectatorUrl = new URL(window.location.href);
 						spectatorUrl.hash += spectatorUrl.hash.at(-1) === '/' ? 'spectator' : '/spectator';
 						window.open(spectatorUrl.toString(), '_blank');
