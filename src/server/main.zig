@@ -141,7 +141,7 @@ pub fn main() !void {
             .max_param_count = 1,
             .max_query_count = 1,
             .lazy_read_size = 1,
-            .buffer_size = 1024 * 16,
+            .buffer_size = 16 * 1024,
         },
     };
     var server = try httpz.Server(App).init(allocator, config, .{
@@ -154,9 +154,12 @@ pub fn main() !void {
     try server.listen();
 }
 
+const MAX_ROOMS = 16 * 1024;
+
 const App = struct {
     allocator: *const Allocator,
     rooms: std.StringHashMap(*Room),
+    rooms_mutex: Mutex = Mutex{},
     max_observed_rooms: u32 = 0,
 
     const Self = @This();
@@ -168,7 +171,12 @@ const App = struct {
             return;
         }
         if (std.mem.eql(u8, req.url.path, "/ws")) {
-            const upgraded = httpz.upgradeWebsocket(WebsocketHandler, req, res, app) catch unreachable;
+            const upgraded = httpz.upgradeWebsocket(WebsocketHandler, req, res, app) catch |err| {
+                std.log.err("WebSocket upgrade failed: {any}", .{err});
+                res.status = 500;
+                res.body = "internal server error";
+                return;
+            };
             if (upgraded == false) {
                 std.log.err("Invalid websocket handshake on path: {s}", .{req.url.path});
                 res.status = 400;
@@ -225,7 +233,10 @@ const App = struct {
             // const msg_type_wrapped = parsed_msg.value.object.get("type") orelse return;
             // const msg_type = std.meta.stringToEnum(MessageType, msg_type_wrapped.string) orelse .unknown;
 
-            const m = try Message.parse(data, msg_allocator);
+            const m = Message.parse(data, msg_allocator) catch |err| {
+                std.log.warn("Failed to parse message ({d} bytes): {any}", .{ data.len, err });
+                return;
+            };
 
             if (m == .Ping) {
                 var writer = self.conn.writeBuffer(msg_allocator, .binary);
@@ -251,10 +262,23 @@ const App = struct {
                 var writer = self.conn.writeBuffer(msg_allocator, .binary);
                 defer writer.deinit();
 
+                self.app.rooms_mutex.lock();
+                defer self.app.rooms_mutex.unlock();
+
                 var rooms = &self.app.rooms;
+
+                // Check room limit before creating new rooms
                 const key = try app_allocator.dupe(u8, join_data.room_id);
                 const gop = try rooms.getOrPut(key);
                 if (!gop.found_existing) {
+                    if (rooms.count() > MAX_ROOMS) {
+                        // Undo the getOrPut insertion
+                        rooms.removeByPtr(gop.key_ptr);
+                        app_allocator.free(key);
+                        std.log.warn("Room limit reached ({d}), rejecting join", .{MAX_ROOMS});
+                        try self.conn.close(.{ .reason = "Server room limit reached" });
+                        return;
+                    }
                     std.log.debug("Room {s} does not exist yet, creating a new one...", .{key});
                     const room = try app_allocator.create(Room);
                     gop.value_ptr.* = room;
@@ -265,6 +289,9 @@ const App = struct {
                         self.app.max_observed_rooms = room_count;
                     }
                     std.log.info("Total rooms: {d} (max observed: {d})", .{ room_count, self.app.max_observed_rooms });
+                } else {
+                    // Room already exists, free the duplicate key
+                    app_allocator.free(key);
                 }
 
                 const room = gop.value_ptr.*;
@@ -316,6 +343,9 @@ const App = struct {
             const room = self.room.?;
             const room_arena = room.arena.allocator();
 
+            room.mutex.lock();
+            defer room.mutex.unlock();
+
             switch (m) {
                 .Poke => {
                     // nothing to do, will just broadcast below
@@ -325,7 +355,7 @@ const App = struct {
                 },
                 .ResetRoom => |room_type| {
                     room.revealed = false;
-                    room.quest += 1;
+                    room.quest +%= 1;
                     room.room_type = room_type;
                     for (room.handlers) |handler| {
                         if (handler == null or handler.?.room == null) continue;
@@ -410,8 +440,8 @@ const App = struct {
         }
 
         pub fn removeHandler(self: *Room, handler: *WebsocketHandler) void {
+            handler.app.rooms_mutex.lock();
             self.mutex.lock();
-            defer self.mutex.unlock();
             std.log.debug("Removing Handler from {s}", .{self.room_id});
             var n: u5 = 0;
             for (self.handlers) |h| {
@@ -419,13 +449,22 @@ const App = struct {
             }
             if (n == 1) {
                 std.log.debug("Clearing up room {s}", .{self.room_id});
+                // Copy pointers to locals before freeing, to avoid use-after-free
+                const room_id = self.room_id;
+                const arena = self.arena;
+                const app_allocator = handler.app.allocator;
                 _ = handler.app.rooms.remove(self.room_id);
-                self.arena.deinit();
-                handler.app.allocator.destroy(self);
-                std.log.info("Destroyed room: {s}", .{self.room_id});
-                handler.app.allocator.free(self.room_id);
+                // Unlock before destroying the room (mutex lives inside Room)
+                self.mutex.unlock();
+                handler.app.rooms_mutex.unlock();
+                arena.deinit();
+                app_allocator.destroy(arena);
+                app_allocator.destroy(self);
+                std.log.info("Destroyed room", .{});
+                app_allocator.free(room_id);
                 return;
             }
+            handler.app.rooms_mutex.unlock();
             for (self.handlers, 0..) |h, i| {
                 if (h != null and h.? == handler) {
                     self.handlers[i] = null;
@@ -435,6 +474,7 @@ const App = struct {
             self.broadcastMessage(Message{ .UserDisconnected = handler.user_data.?.user_id }, handler) catch |err| {
                 std.log.err("Error broadcasting room update: {any}", .{err});
             };
+            self.mutex.unlock();
             std.log.debug("Removed Handler, remaining: {d}", .{n - 1});
         }
 
@@ -459,17 +499,17 @@ fn logWithTimestamp(
     args: anytype,
 ) void {
     _ = scope; // not used
-    const ts = zul.DateTime.fromUnix(std.time.milliTimestamp(), .milliseconds) catch unreachable;
-    var buf = [_]u8{0} ** 64;
+    const ts = zul.DateTime.fromUnix(std.time.milliTimestamp(), .milliseconds) catch return;
+    var buf = [_]u8{0} ** 4096;
     var writer = std.fs.File.stdout().writerStreaming(&buf);
     const date = ts.date();
     const time = ts.time();
-    writer.interface.print("{d}-{d:0>2}-{d:0>2} {d:0>2}:{d:0>2}:{d:0>2} [", .{ date.year, date.month, date.day, time.hour, time.min, time.sec }) catch unreachable;
+    writer.interface.print("{d}-{d:0>2}-{d:0>2} {d:0>2}:{d:0>2}:{d:0>2} [", .{ date.year, date.month, date.day, time.hour, time.min, time.sec }) catch return;
     for (message_level.asText()) |c| {
-        writer.interface.writeByte(std.ascii.toUpper(c)) catch unreachable;
+        writer.interface.writeByte(std.ascii.toUpper(c)) catch return;
     }
-    writer.interface.print("] " ++ format ++ "\n", args) catch unreachable;
-    writer.interface.flush() catch unreachable;
+    writer.interface.print("] " ++ format ++ "\n", args) catch return;
+    writer.interface.flush() catch return;
 }
 
 const this = @This();

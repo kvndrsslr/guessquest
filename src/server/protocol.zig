@@ -119,6 +119,34 @@ pub const Message = union(MessageType) {
 
     const Self = @This();
 
+    // Frontend maxlength counts UTF-16 code units; we count them from UTF-8 to match
+    const max_name_utf16_len = 18;
+    const max_room_id_utf16_len = 18;
+    const max_string_utf16_len = 256;
+
+    /// Count UTF-16 code units for a UTF-8 encoded string.
+    /// Returns null if the input is not valid UTF-8.
+    fn utf16Len(utf8: []const u8) ?usize {
+        const view = std.unicode.Utf8View.init(utf8) catch return null;
+        var it = view.iterator();
+        var len: usize = 0;
+        while (it.nextCodepoint()) |cp| {
+            len += if (cp > 0xFFFF) @as(usize, 2) else 1;
+        }
+        return len;
+    }
+
+    fn validateStringLen(str: []const u8, max_utf16_len: usize, alloc: Allocator) MessageError!void {
+        const len = utf16Len(str) orelse {
+            alloc.free(str);
+            return MessageError.InvalidData;
+        };
+        if (len > max_utf16_len) {
+            alloc.free(str);
+            return MessageError.InvalidData;
+        }
+    }
+
     fn parseChoice(
         bit_reader: *bit_io.BitReader(.little),
         bytes_reader: *std.io.Reader,
@@ -186,6 +214,7 @@ pub const Message = union(MessageType) {
                 defer alloc_writer.deinit();
                 _ = try bytes_reader.streamDelimiterEnding(&alloc_writer.writer, 0);
                 const name = try alloc_writer.toOwnedSlice();
+                try validateStringLen(name, max_name_utf16_len, alloc);
 
                 return .{ .UpdateUserName = name };
             },
@@ -202,6 +231,7 @@ pub const Message = union(MessageType) {
                 defer alloc_writer.deinit();
                 _ = try bytes_reader.streamDelimiterEnding(&alloc_writer.writer, 0);
                 const with = try alloc_writer.toOwnedSlice();
+                try validateStringLen(with, max_string_utf16_len, alloc);
 
                 return .{ .Poke = .{ .user_id = user_id, .with = with } };
             },
@@ -217,11 +247,16 @@ pub const Message = union(MessageType) {
 
                 _ = try bytes_reader.streamDelimiterEnding(&alloc_writer.writer, 0);
                 const room_id = try alloc_writer.toOwnedSlice();
+                try validateStringLen(room_id, max_room_id_utf16_len, alloc);
 
                 bytes_reader.toss(1);
 
                 _ = try bytes_reader.streamDelimiterEnding(&alloc_writer.writer, 0);
                 const name = try alloc_writer.toOwnedSlice();
+                validateStringLen(name, max_name_utf16_len, alloc) catch |err| {
+                    alloc.free(room_id);
+                    return err;
+                };
 
                 return .{
                     .Join = .{
@@ -517,4 +552,83 @@ test "parse join" {
         },
         else => try expect(false),
     }
+}
+
+test "utf16Len counts correctly" {
+    // ASCII: 1 byte = 1 UTF-16 code unit each
+    try expect(Message.utf16Len("hello").? == 5);
+    // CJK U+4E16 (世): 3 UTF-8 bytes, 1 UTF-16 code unit each
+    try expect(Message.utf16Len("世界").? == 2);
+    // Emoji U+1F389 (🎉): 4 UTF-8 bytes, 2 UTF-16 code units (surrogate pair)
+    try expect(Message.utf16Len("🎉").? == 2);
+    // Mixed: "hi🎉" = 2 + 2 = 4 UTF-16 code units
+    try expect(Message.utf16Len("hi🎉").? == 4);
+    // Empty string
+    try expect(Message.utf16Len("").? == 0);
+    // Invalid UTF-8
+    try expect(Message.utf16Len(&[_]u8{ 0xFF, 0xFE }) == null);
+}
+
+test "reject name exceeding max length" {
+    // 19 ASCII chars = 19 UTF-16 code units, exceeds max_name_utf16_len (18)
+    const data = [_]u8{0b10100100} ++ "1234567890123456789".*;
+    try std.testing.expectError(error.InvalidData, Message.parse(&data, test_alloc));
+}
+
+test "accept name at max length" {
+    // 18 ASCII chars = 18 UTF-16 code units, exactly at limit
+    const data = [_]u8{0b10100100} ++ "123456789012345678".*;
+    const msg = try Message.parse(&data, test_alloc);
+    switch (msg) {
+        .UpdateUserName => |name| {
+            try expect(name.len == 18);
+            test_alloc.free(name);
+        },
+        else => try expect(false),
+    }
+}
+
+test "reject name with emoji exceeding max UTF-16 length" {
+    // 🎉 = 2 UTF-16 code units. 17 ASCII + 🎉 = 17 + 2 = 19 > 18
+    const data = [_]u8{0b10100100} ++ "12345678901234567\xF0\x9F\x8E\x89".*;
+    try std.testing.expectError(error.InvalidData, Message.parse(&data, test_alloc));
+}
+
+test "accept name with emoji at max UTF-16 length" {
+    // 🎉 = 2 UTF-16 code units. 16 ASCII + 🎉 = 16 + 2 = 18
+    const data = [_]u8{0b10100100} ++ "1234567890123456\xF0\x9F\x8E\x89".*;
+    const msg = try Message.parse(&data, test_alloc);
+    switch (msg) {
+        .UpdateUserName => |name| {
+            try expect(std.mem.eql(u8, name, "1234567890123456🎉"));
+            test_alloc.free(name);
+        },
+        else => try expect(false),
+    }
+}
+
+test "reject name with invalid UTF-8" {
+    const data = [_]u8{ 0b10100100, 0xFF, 0xFE, 0 };
+    try std.testing.expectError(error.InvalidData, Message.parse(&data, test_alloc));
+}
+
+test "reject join with room_id exceeding max length" {
+    // Build a Join message with a 19-char room_id
+    const data = [_]u8{
+        0b10000000, // Join + hero high nibble
+        0b00100000, // hero low + room_type + spectator
+        0b10000010, // choice (SingleNumber = 130)
+    } ++ "1234567890123456789".* ++ [_]u8{0} // room_id: 19 chars
+    ++ "Ok".* ++ [_]u8{0}; // name: 2 chars
+    try std.testing.expectError(error.InvalidData, Message.parse(&data, test_alloc));
+}
+
+test "reject poke with string exceeding max length" {
+    // Poke message: 4-bit type (0xD) + 4-bit user_id + null-terminated string
+    // Build string of 257 ASCII chars (exceeds max_string_utf16_len = 256)
+    var data: [2 + 257]u8 = undefined;
+    data[0] = 0b01111101; // user_id=7, type=Poke(13)
+    @memset(data[1 .. 1 + 257], 'A');
+    // No null terminator — streamDelimiterEnding reads to end of fixed reader
+    try std.testing.expectError(error.InvalidData, Message.parse(&data, test_alloc));
 }
