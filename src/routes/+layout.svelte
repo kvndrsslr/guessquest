@@ -2,7 +2,7 @@
 	import '@fontsource/medievalsharp';
 	import medievalSharpWoff2 from '@fontsource/medievalsharp/files/medievalsharp-latin-400-normal.woff2?url';
 	import { Tooltip } from 'bits-ui';
-	import { GithubIcon, CopyIcon, HatGlassesIcon, CheckIcon } from '@lucide/svelte';
+	import { CopyIcon, HatGlassesIcon, CheckIcon, FolderGitIcon } from '@lucide/svelte';
 	import ActionTooltip from '$lib/components/ActionTooltip.svelte';
 	import { fade } from 'svelte/transition';
 	import { beforeNavigate } from '$app/navigation';
@@ -101,7 +101,7 @@
 			{/if}
 			<ActionTooltip href="https://github.com/kvndrsslr/guessquest">
 				{#snippet trigger()}
-					<GithubIcon />
+					<FolderGitIcon />
 				{/snippet}
 				View on GitHub
 			</ActionTooltip>

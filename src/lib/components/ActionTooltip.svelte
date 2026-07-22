@@ -35,7 +35,7 @@
 				{#if open}
 					<div {...wrapperProps}>
 						<div {...props} transition:fly>
-							{@render children?.()}
+							{@render (children as Snippet<[]> | undefined)?.()}
 						</div>
 					</div>
 				{/if}

@@ -41,14 +41,15 @@ pub fn build(b: *std.Build) !void {
         .root_module = exe_mod,
     });
 
-    var files = std.ArrayList([]const u8){};
+    var files: std.ArrayList([]const u8) = .empty;
     defer files.deinit(b.allocator);
 
     const static_dir_path = "_static";
-    const static_dir = try std.fs.cwd().openDir(module_root ++ static_dir_path, .{ .iterate = true });
+    const io = b.graph.io;
+    const static_dir = try std.Io.Dir.cwd().openDir(io, module_root ++ static_dir_path, .{ .iterate = true });
     var walker = try static_dir.walk(b.allocator);
 
-    while (try walker.next()) |entry| if (entry.kind == .file) {
+    while (try walker.next(io)) |entry| if (entry.kind == .file) {
         try files.append(b.allocator, b.dupe(entry.path));
     };
 

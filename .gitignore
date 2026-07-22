@@ -11,6 +11,7 @@ node_modules
 
 # Zig build artifacts
 zig-out/
+zig-pkg/
 .zig-cache/
 *.zig.zon.lock
 

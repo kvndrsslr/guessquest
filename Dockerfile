@@ -5,7 +5,7 @@ ENV HOME=/
 RUN curl https://raw.githubusercontent.com/tristanisham/zvm/master/install.sh | bash
 ENV ZVM_INSTALL=$HOME/.zvm/self
 ENV PATH=$ZVM_INSTALL:$HOME/.zvm/bin:$PATH
-RUN zvm install 0.15.2
+RUN zvm install 0.16.0
 COPY . .
 RUN ls -alh
 RUN npm ci

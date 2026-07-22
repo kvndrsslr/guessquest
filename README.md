@@ -17,7 +17,7 @@ You can download the latest precompiled binary for common platforms from the [re
 
 ### Build from Source
 
-To build Guess Quest from source, you'll need to have NodeJS (`>=24`) & Zig (`==0.15.2`) installed on your machine.
+To build Guess Quest from source, you'll need to have NodeJS (`>=24`) & Zig (`==0.16.0`) installed on your machine.
 Then follow these steps:
 
 ```sh

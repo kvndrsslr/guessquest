@@ -149,7 +149,7 @@ pub const Message = union(MessageType) {
 
     fn parseChoice(
         bit_reader: *bit_io.BitReader(.little),
-        bytes_reader: *std.io.Reader,
+        bytes_reader: *std.Io.Reader,
         alloc: Allocator,
     ) !Choice {
         const choice_type: ChoiceType = @enumFromInt(try bit_reader.readBitsNoEof(u2, 2));
@@ -160,7 +160,7 @@ pub const Message = union(MessageType) {
                 return .{ .SingleNumber = choice_value };
             },
             .SingleString => {
-                var alloc_writer = std.io.Writer.Allocating.init(alloc);
+                var alloc_writer = std.Io.Writer.Allocating.init(alloc);
                 defer alloc_writer.deinit();
                 _ = try bytes_reader.streamDelimiterEnding(&alloc_writer.writer, 0);
                 const choice = try alloc_writer.toOwnedSlice();
@@ -210,7 +210,7 @@ pub const Message = union(MessageType) {
                 return .{ .UpdateUserHero = hero };
             },
             .UpdateUserName => {
-                var alloc_writer = std.io.Writer.Allocating.init(alloc);
+                var alloc_writer = std.Io.Writer.Allocating.init(alloc);
                 defer alloc_writer.deinit();
                 _ = try bytes_reader.streamDelimiterEnding(&alloc_writer.writer, 0);
                 const name = try alloc_writer.toOwnedSlice();
@@ -227,7 +227,7 @@ pub const Message = union(MessageType) {
             },
             .Poke => {
                 const user_id: u4 = try bit_reader.readBitsNoEof(u4, 4);
-                var alloc_writer = std.io.Writer.Allocating.init(alloc);
+                var alloc_writer = std.Io.Writer.Allocating.init(alloc);
                 defer alloc_writer.deinit();
                 _ = try bytes_reader.streamDelimiterEnding(&alloc_writer.writer, 0);
                 const with = try alloc_writer.toOwnedSlice();
@@ -242,7 +242,7 @@ pub const Message = union(MessageType) {
                 const is_spectator: bool = @as(bool, @bitCast(try bit_reader.readBitsNoEof(u1, 1)));
                 const choice = try parseChoice(&bit_reader, &bytes_reader, alloc);
 
-                var alloc_writer = std.io.Writer.Allocating.init(alloc);
+                var alloc_writer = std.Io.Writer.Allocating.init(alloc);
                 defer alloc_writer.deinit();
 
                 _ = try bytes_reader.streamDelimiterEnding(&alloc_writer.writer, 0);

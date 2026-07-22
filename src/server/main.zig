@@ -8,7 +8,7 @@ const prot = @import("protocol.zig");
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const Parsed = std.json.Parsed;
-const Mutex = std.Thread.Mutex;
+const Mutex = std.Io.Mutex;
 
 const Message = prot.Message;
 const RoomType = prot.RoomType;
@@ -52,7 +52,7 @@ fn addCachingHeaders(res: *httpz.Response, content_type: ?httpz.ContentType) voi
     }
 }
 
-fn printUsage() void {
+fn printUsage(io: std.Io) void {
     const usage =
         \\Usage: guessquest-server [OPTIONS]
         \\
@@ -81,19 +81,19 @@ fn printUsage() void {
     ;
     var buffer: [100]u8 = undefined;
 
-    var writer = std.fs.File.stdout().writer(&buffer);
+    var writer = std.Io.File.stdout().writer(io, &buffer);
     _ = writer.interface.writeAll(usage) catch {};
     _ = writer.interface.flush() catch {};
 }
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
+pub fn main(init: std.process.Init) !void {
+    const allocator = init.gpa;
+    const io = init.io;
 
     // Parse command-line arguments
     var port: u16 = 48377; // default port
     var address: []const u8 = "0.0.0.0"; // default address
-    var args = try std.process.argsWithAllocator(allocator);
+    var args = try init.minimal.args.iterateAllocator(allocator);
     defer args.deinit();
 
     // Skip the program name
@@ -101,7 +101,7 @@ pub fn main() !void {
 
     while (args.next()) |arg| {
         if (std.mem.eql(u8, arg, "-h") or std.mem.eql(u8, arg, "--help")) {
-            printUsage();
+            printUsage(io);
             return;
         } else if (std.mem.eql(u8, arg, "-p")) {
             if (args.next()) |port_str| {
@@ -116,7 +116,7 @@ pub fn main() !void {
         } else if (std.mem.eql(u8, arg, "-a")) {
             if (args.next()) |addr_str| {
                 // Validate that it's a valid IP address
-                _ = std.net.Address.parseIp(addr_str, 0) catch {
+                _ = std.Io.net.IpAddress.parse(addr_str, 0) catch {
                     std.log.err("Invalid IP address: {s}", .{addr_str});
                     return error.InvalidAddress;
                 };
@@ -128,12 +128,15 @@ pub fn main() !void {
         }
     }
 
+    const ip_address = std.Io.net.IpAddress.parse(address, port) catch {
+        std.log.err("Invalid IP address: {s}", .{address});
+        return error.InvalidAddress;
+    };
     const config = httpz.Config{
-        .port = port,
+        .address = .{ .ip = ip_address },
         .thread_pool = .{
             .count = @intCast(std.Thread.getCpuCount() catch 2),
         },
-        .address = address,
         .request = .{
             .max_body_size = 1,
             .max_form_count = 1,
@@ -144,8 +147,9 @@ pub fn main() !void {
             .buffer_size = 16 * 1024,
         },
     };
-    var server = try httpz.Server(App).init(allocator, config, .{
+    var server = try httpz.Server(App).init(io, allocator, config, .{
         .allocator = &allocator,
+        .io = io,
         .rooms = std.StringHashMap(*App.Room).init(allocator),
     });
 
@@ -158,8 +162,9 @@ const MAX_ROOMS = 16 * 1024;
 
 const App = struct {
     allocator: *const Allocator,
+    io: std.Io,
     rooms: std.StringHashMap(*Room),
-    rooms_mutex: Mutex = Mutex{},
+    rooms_mutex: Mutex = .init,
     max_observed_rooms: u32 = 0,
 
     const Self = @This();
@@ -262,8 +267,8 @@ const App = struct {
                 var writer = self.conn.writeBuffer(msg_allocator, .binary);
                 defer writer.deinit();
 
-                self.app.rooms_mutex.lock();
-                defer self.app.rooms_mutex.unlock();
+                self.app.rooms_mutex.lockUncancelable(self.app.io);
+                defer self.app.rooms_mutex.unlock(self.app.io);
 
                 var rooms = &self.app.rooms;
 
@@ -282,7 +287,7 @@ const App = struct {
                     std.log.debug("Room {s} does not exist yet, creating a new one...", .{key});
                     const room = try app_allocator.create(Room);
                     gop.value_ptr.* = room;
-                    room.* = try Room.init(app_allocator, key, join_data.room_type);
+                    room.* = try Room.init(app_allocator, key, join_data.room_type, self.app.io);
                     std.log.info("Created room: {s}", .{key});
                     const room_count = rooms.count();
                     if (room_count > self.app.max_observed_rooms) {
@@ -343,8 +348,8 @@ const App = struct {
             const room = self.room.?;
             const room_arena = room.arena.allocator();
 
-            room.mutex.lock();
-            defer room.mutex.unlock();
+            room.mutex.lockUncancelable(room.io);
+            defer room.mutex.unlock(room.io);
 
             switch (m) {
                 .Poke => {
@@ -387,21 +392,23 @@ const App = struct {
     };
 
     pub const Room = struct {
-        mutex: Mutex = Mutex{},
+        mutex: Mutex = .init,
         room_id: []const u8,
         room_type: RoomType,
         quest: u8 = 0,
         revealed: bool = false,
         handlers: [16]?*WebsocketHandler = [_]?*WebsocketHandler{null} ** 16, // max 16 users per room
         arena: *ArenaAllocator,
+        io: std.Io,
 
-        pub fn init(allocator: *const Allocator, room_id: []const u8, room_type: RoomType) !Room {
+        pub fn init(allocator: *const Allocator, room_id: []const u8, room_type: RoomType, io: std.Io) !Room {
             const arena = try allocator.create(std.heap.ArenaAllocator);
             arena.* = ArenaAllocator.init(allocator.*);
             return .{
                 .room_id = room_id,
                 .room_type = room_type,
                 .arena = arena,
+                .io = io,
             };
         }
 
@@ -428,8 +435,8 @@ const App = struct {
         };
 
         pub fn addHandler(self: *Room, handler: *WebsocketHandler) RoomError!u4 {
-            self.mutex.lock();
-            defer self.mutex.unlock();
+            self.mutex.lockUncancelable(self.io);
+            defer self.mutex.unlock(self.io);
             for (self.handlers, 0..) |h, i| {
                 if (h == null) {
                     self.handlers[i] = handler;
@@ -440,8 +447,8 @@ const App = struct {
         }
 
         pub fn removeHandler(self: *Room, handler: *WebsocketHandler) void {
-            handler.app.rooms_mutex.lock();
-            self.mutex.lock();
+            handler.app.rooms_mutex.lockUncancelable(handler.app.io);
+            self.mutex.lockUncancelable(self.io);
             std.log.debug("Removing Handler from {s}", .{self.room_id});
             var n: u5 = 0;
             for (self.handlers) |h| {
@@ -455,8 +462,8 @@ const App = struct {
                 const app_allocator = handler.app.allocator;
                 _ = handler.app.rooms.remove(self.room_id);
                 // Unlock before destroying the room (mutex lives inside Room)
-                self.mutex.unlock();
-                handler.app.rooms_mutex.unlock();
+                self.mutex.unlock(self.io);
+                handler.app.rooms_mutex.unlock(handler.app.io);
                 arena.deinit();
                 app_allocator.destroy(arena);
                 app_allocator.destroy(self);
@@ -464,7 +471,7 @@ const App = struct {
                 app_allocator.free(room_id);
                 return;
             }
-            handler.app.rooms_mutex.unlock();
+            handler.app.rooms_mutex.unlock(handler.app.io);
             for (self.handlers, 0..) |h, i| {
                 if (h != null and h.? == handler) {
                     self.handlers[i] = null;
@@ -474,12 +481,12 @@ const App = struct {
             self.broadcastMessage(Message{ .UserDisconnected = handler.user_data.?.user_id }, handler) catch |err| {
                 std.log.err("Error broadcasting room update: {any}", .{err});
             };
-            self.mutex.unlock();
+            self.mutex.unlock(self.io);
             std.log.debug("Removed Handler, remaining: {d}", .{n - 1});
         }
 
         pub fn collectUsers(self: *Room, user_id: u4) ![]UserData {
-            var users = std.ArrayList(UserData){};
+            var users: std.ArrayList(UserData) = .empty;
             for (self.handlers) |maybe_handler| {
                 if (maybe_handler) |handler| {
                     if (handler.room == self and handler.user_data.?.user_id != user_id) {
@@ -494,14 +501,16 @@ const App = struct {
 
 fn logWithTimestamp(
     comptime message_level: std.log.Level,
-    comptime scope: @Type(.enum_literal),
+    comptime scope: @EnumLiteral(),
     comptime format: []const u8,
     args: anytype,
 ) void {
     _ = scope; // not used
-    const ts = zul.DateTime.fromUnix(std.time.milliTimestamp(), .milliseconds) catch return;
+    const io = std.Options.debug_io;
+    const now_ms = std.Io.Clock.real.now(io).toMilliseconds();
+    const ts = zul.DateTime.fromUnix(now_ms, .milliseconds) catch return;
     var buf = [_]u8{0} ** 4096;
-    var writer = std.fs.File.stdout().writerStreaming(&buf);
+    var writer = std.Io.File.stdout().writerStreaming(io, &buf);
     const date = ts.date();
     const time = ts.time();
     writer.interface.print("{d}-{d:0>2}-{d:0>2} {d:0>2}:{d:0>2}:{d:0>2} [", .{ date.year, date.month, date.day, time.hour, time.min, time.sec }) catch return;
