@@ -1,5 +1,27 @@
 const std = @import("std");
 
+/// Linux binaries from this project are statically linked, so a target that asks for
+/// Linux without naming an ABI gets musl.
+///
+/// Zig otherwise resolves a bare `-Dtarget=<arch>-linux` to the *build host's* native
+/// ABI: cross-compiling from macOS yields a static musl binary, while building inside an
+/// arm64 Linux container yields a dynamically linked glibc binary. Depending on that
+/// host detail silently changes the artifact (and breaks the scratch-based Docker image).
+fn staticLinuxQuery(query: std.Target.Query) std.Target.Query {
+    if (query.os_tag == .linux and query.abi == null) {
+        var static_query = query;
+        static_query.abi = .musl;
+        return static_query;
+    }
+    return query;
+}
+
+fn staticLinuxTarget(b: *std.Build, target: std.Build.ResolvedTarget) std.Build.ResolvedTarget {
+    const query = staticLinuxQuery(target.query);
+    if (query.eql(target.query)) return target;
+    return b.resolveTargetQuery(query);
+}
+
 // Although this function looks imperative, note that its job is to
 // declaratively construct a build graph that will be executed by an external
 // runner.
@@ -8,7 +30,7 @@ pub fn build(b: *std.Build) !void {
     // what target to build for. Here we do not override the defaults, which
     // means any target is allowed, and the default is native. Other options
     // for restricting supported target set are available.
-    const target = b.standardTargetOptions(.{});
+    const target = staticLinuxTarget(b, b.standardTargetOptions(.{}));
 
     // Standard optimization options allow the person running `zig build` to select
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall. Here we do not
@@ -46,6 +68,13 @@ pub fn build(b: *std.Build) !void {
 
     const static_dir_path = "_static";
     const io = b.graph.io;
+
+    // The configure logic below reads the _static directory, so the cached build
+    // configuration must be invalidated when its entries change (e.g. after the
+    // frontend rebuild rehashes asset filenames). Without this, a stale file list
+    // is reused and @embedFile() fails on files that no longer exist.
+    b.dependOnDirectoryContents(b.path(module_root ++ static_dir_path));
+
     const static_dir = try std.Io.Dir.cwd().openDir(io, module_root ++ static_dir_path, .{ .iterate = true });
     var walker = try static_dir.walk(b.allocator);
 
@@ -75,10 +104,8 @@ pub fn build(b: *std.Build) !void {
     run_cmd.step.dependOn(b.getInstallStep());
 
     // This allows the user to pass arguments to the application in the build
-    // command itself, like this: `zig build run -- arg1 arg2 etc`
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
+    // command itself, like this: `zig build start -- arg1 arg2 etc`
+    run_cmd.addPassthruArgs();
 
     // This creates a build step. It will be visible in the `zig build --help` menu,
     // and can be selected like this: `zig build run`
@@ -106,6 +133,8 @@ pub fn build(b: *std.Build) !void {
     const targets: []const std.Target.Query = &.{
         .{ .cpu_arch = .x86_64, .os_tag = .macos },
         .{ .cpu_arch = .aarch64, .os_tag = .macos },
+        // Normalised to musl (see staticLinuxQuery) but named from the un-normalised
+        // query, so the release artifact keeps its `-linux` name.
         .{ .cpu_arch = .aarch64, .os_tag = .linux },
         .{ .cpu_arch = .x86_64, .os_tag = .linux, .abi = .gnu },
         .{ .cpu_arch = .x86_64, .os_tag = .linux, .abi = .musl },
@@ -115,7 +144,7 @@ pub fn build(b: *std.Build) !void {
     for (targets) |t| {
         const t_exe_mod = b.createModule(.{
             .root_source_file = b.path(module_root ++ "main.zig"),
-            .target = b.resolveTargetQuery(t),
+            .target = b.resolveTargetQuery(staticLinuxQuery(t)),
             .optimize = .ReleaseFast,
         });
 

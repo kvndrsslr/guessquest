@@ -1,0 +1,6 @@
+node_modules
+.svelte-kit
+zig-out
+.zig-cache
+zig-pkg
+.git

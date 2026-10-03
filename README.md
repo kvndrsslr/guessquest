@@ -17,15 +17,19 @@ You can download the latest precompiled binary for common platforms from the [re
 
 ### Build from Source
 
-To build Guess Quest from source, you'll need to have NodeJS (`>=24`) & Zig (`==0.16.0`) installed on your machine.
+To build Guess Quest from source, you'll need to have NodeJS (`>=24`), [pnpm](https://pnpm.io) (`>=12`) & Zig (`==0.17.0`) installed on your machine.
 Then follow these steps:
 
 ```sh
 git clone https://github.com/kvndrsslr/guessquest.git
 cd guessquest
-npm ci
-npm run build
+pnpm install
+pnpm run build
 ```
+
+The Zig server builds from [`vendor/`](vendor) - the `httpz` and `zul` dependencies (plus their own
+`metrics`/`websocket` dependencies) are vendored and patched for Zig 0.17.0 because upstream does not
+support it yet. See [`vendor/README.md`](vendor/README.md) for details.
 
 #### Using Docker
 
@@ -41,7 +45,7 @@ docker run -d -p 48377:48377 guessquest
 In order to cross-compile the Zig server binary for another platform just append the zig compiler parameters to the build command, e.g., for Linux ARM64:
 
 ```sh
-npm run build:backend -- -Dtarget=aarch64-linux
+pnpm run build:backend -Dtarget=aarch64-linux
 ```
 
 ## Running the Server

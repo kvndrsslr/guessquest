@@ -397,7 +397,7 @@ const App = struct {
         room_type: RoomType,
         quest: u8 = 0,
         revealed: bool = false,
-        handlers: [16]?*WebsocketHandler = [_]?*WebsocketHandler{null} ** 16, // max 16 users per room
+        handlers: [16]?*WebsocketHandler = @splat(null), // max 16 users per room
         arena: *ArenaAllocator,
         io: std.Io,
 
@@ -509,7 +509,7 @@ fn logWithTimestamp(
     const io = std.Options.debug_io;
     const now_ms = std.Io.Clock.real.now(io).toMilliseconds();
     const ts = zul.DateTime.fromUnix(now_ms, .milliseconds) catch return;
-    var buf = [_]u8{0} ** 4096;
+    var buf: [4096]u8 = @splat(0);
     var writer = std.Io.File.stdout().writerStreaming(io, &buf);
     const date = ts.date();
     const time = ts.time();

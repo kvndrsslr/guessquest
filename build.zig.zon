@@ -2,16 +2,10 @@
     .name = .guessquest_server,
     .version = "0.1.0",
     .fingerprint = 0x77cb8245c95d6a5, // Changing this has security and trust implications.
-    .minimum_zig_version = "0.16.0",
+    .minimum_zig_version = "0.17.0",
     .dependencies = .{
-        .zul = .{
-            .url = "https://github.com/karlseguin/zul/archive/146f9d5b2238c3a621b96345adf03490900c2fe2.tar.gz",
-            .hash = "zul-0.0.0-1oDot2KwBwC9c43wC7V9y4-xxg0a_d9okFDcJPhqmije",
-        },
-        .httpz = .{
-            .url = "https://github.com/karlseguin/http.zig/archive/52eb187cff75e168316b44480cd9f0fae26a1c5e.tar.gz",
-            .hash = "httpz-0.0.0-PNVzrL3oCADwWVoScHt1fFGTRyZMJ_FYa9reFvHhqq8Y",
-        },
+        .zul = .{ .path = "vendor/zul" },
+        .httpz = .{ .path = "vendor/httpz" },
     },
-    .paths = .{ "build.zig", "build.zig.zon", "server.zig", "src/server" },
+    .paths = .{ "build.zig", "build.zig.zon", "src/server", "vendor" },
 }

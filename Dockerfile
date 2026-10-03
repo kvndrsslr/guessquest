@@ -5,12 +5,13 @@ ENV HOME=/
 RUN curl https://raw.githubusercontent.com/tristanisham/zvm/master/install.sh | bash
 ENV ZVM_INSTALL=$HOME/.zvm/self
 ENV PATH=$ZVM_INSTALL:$HOME/.zvm/bin:$PATH
-RUN zvm install 0.16.0
+RUN zvm install 0.17.0
+RUN npm i -g pnpm@12.8.1
 COPY . .
 RUN ls -alh
-RUN npm ci
-RUN npm run build:frontend
-RUN npm run build:backend -- -Dtarget=$TARGET
+RUN pnpm install --frozen-lockfile
+RUN pnpm run build:frontend
+RUN pnpm run build:backend -Dtarget=$TARGET
 
 FROM scratch
 COPY --from=build /app/zig-out/bin/guessquest-server /guessquest-server

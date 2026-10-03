@@ -39,7 +39,7 @@ pub fn BitReader(comptime endian: std.builtin.Endian) type {
         }
 
         fn initBits(comptime T: type, out: anytype, num: u16) Bits(T) {
-            const UT = std.meta.Int(.unsigned, @bitSizeOf(T));
+            const UT = @Int(.unsigned, @bitSizeOf(T));
             return .{
                 @bitCast(@as(UT, @intCast(out))),
                 num,
@@ -68,7 +68,7 @@ pub fn BitReader(comptime endian: std.builtin.Endian) type {
         ///  containing them in the least significant end, and the number of bits successfully
         ///  read. Reaching the end of the stream is not an error.
         pub fn readBitsTuple(self: *@This(), comptime T: type, num: u16) !Bits(T) {
-            const UT = std.meta.Int(.unsigned, @bitSizeOf(T));
+            const UT = @Int(.unsigned, @bitSizeOf(T));
             const U = if (@bitSizeOf(T) < 8) u8 else UT; //it is a pain to work with <u8
 
             //dump any bits in our buffer first
@@ -273,7 +273,7 @@ pub fn BitWriter(comptime endian: std.builtin.Endian) type {
         ///  are enough to fill a byte.
         pub fn writeBits(self: *@This(), value: anytype, num: u16) !void {
             const T = @TypeOf(value);
-            const UT = std.meta.Int(.unsigned, @bitSizeOf(T));
+            const UT = @Int(.unsigned, @bitSizeOf(T));
             const U = if (@bitSizeOf(T) < 8) u8 else UT; //<u8 is a pain to work with
 
             var in: U = @as(UT, @bitCast(value));
@@ -362,8 +362,8 @@ pub fn bitWriter(comptime endian: std.builtin.Endian, writer: *std.Io.Writer) Bi
 ///////////////////////////////
 
 test "writer api coverage" {
-    var mem_be = [_]u8{0} ** 2;
-    var mem_le = [_]u8{0} ** 2;
+    var mem_be: [2]u8 = @splat(0);
+    var mem_le: [2]u8 = @splat(0);
 
     var mem_out_be = std.Io.Writer.fixed(&mem_be);
     var bit_stream_be = bitWriter(.big, &mem_out_be);
