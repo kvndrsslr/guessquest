@@ -23,7 +23,8 @@ function cats(): Plugin {
 			const text = await response.text();
 			const urls = text
 				.matchAll(/https?:\/\/moar\..*?\.gif/g)
-				.map((m) => m[0])
+				// the index links the gifs over http, but that origin 404s; https serves them
+				.map((m) => m[0].replace(/^http:/, 'https:'))
 				.toArray();
 			return `export default JSON.parse('${JSON.stringify(urls)}');`;
 		}
