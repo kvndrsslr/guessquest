@@ -1,5 +1,5 @@
-import { CurrentUser } from '$lib/CurrentUser.svelte';
-import { RoomType, NetworkClient } from '$lib/network';
+import { CurrentUser } from '#lib/CurrentUser.svelte.js';
+import { RoomType, NetworkClient } from '#lib/network.js';
 
 export type Choice = string | number | [number, number] | null;
 

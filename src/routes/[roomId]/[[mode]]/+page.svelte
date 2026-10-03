@@ -1,15 +1,15 @@
 <script lang="ts">
-	import { currentUser, room, type Choice } from '$lib/app.svelte';
+	import { currentUser, room, type Choice } from '#lib/app.svelte.js';
 
-	import { useInactivityTimeout } from '$lib/useInactivityTimeout';
+	import { useInactivityTimeout } from '#lib/useInactivityTimeout.js';
 	import { goto } from '$app/navigation';
-	import Hero from '$lib/components/Hero.svelte';
-	import Card from '$lib/components/Card.svelte';
-	import Monster from '$lib/components/Monster.svelte';
+	import Hero from '#lib/components/Hero.svelte';
+	import Card from '#lib/components/Card.svelte';
+	import Monster from '#lib/components/Monster.svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { page } from '$app/state';
 	import { flip } from 'svelte/animate';
-	import CatGif from '$lib/components/CatGif.svelte';
+	import CatGif from '#lib/components/CatGif.svelte';
 	import { resolve } from '$app/paths';
 
 	const options = [1, 2, 3, 5, 8, 13, 21, 34, '∞', '?'];

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { currentUser, type Choice } from '$lib/app.svelte';
+	import { currentUser, type Choice } from '#lib/app.svelte.js';
 
 	type CardProps = {
 		choice: Choice;
@@ -29,7 +29,7 @@
 
 		pointer-events: all;
 		user-select: none;
-		background-image: url('$lib/assets/card.webp');
+		background-image: url('../assets/card.webp');
 		background-repeat: no-repeat;
 		background-size: contain;
 		height: 136px;

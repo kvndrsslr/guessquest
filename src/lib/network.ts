@@ -1,6 +1,6 @@
 import { page } from '$app/state';
-import { currentUser, room, type Choice, type UserData } from '$lib/app.svelte';
-import { MessageReader, MessageWriter } from '$lib/bit-io';
+import { currentUser, room, type Choice, type UserData } from '#lib/app.svelte.js';
+import { MessageReader, MessageWriter } from '#lib/bit-io.js';
 
 export enum RoomType {
 	StoryPoints = 0,

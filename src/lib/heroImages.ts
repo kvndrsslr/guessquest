@@ -1,5 +1,5 @@
 export const heroImages = Object.fromEntries(
-	Object.entries(import.meta.glob('$lib/assets/heroes/*.webp', { eager: true }))
+	Object.entries(import.meta.glob('#lib/assets/heroes/*.webp', { eager: true }))
 		.map(([path, module]) => {
 			const match = path.match(/\/heroes\/(\d+)\.webp$/);
 			if (match) {

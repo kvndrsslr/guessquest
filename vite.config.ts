@@ -1,3 +1,5 @@
+import adapter from '@sveltejs/adapter-static';
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig, type Plugin } from 'vite';
 import devtoolsJson from 'vite-plugin-devtools-json';
@@ -29,8 +31,16 @@ function cats(): Plugin {
 }
 
 export default defineConfig({
-	plugins: [sveltekit(), devtoolsJson(), cats()],
-	build: {
-		target: 'esnext'
-	}
+	plugins: [
+		sveltekit({
+			preprocess: vitePreprocess(),
+			compilerOptions: { runes: true },
+			output: { bundleStrategy: 'split' },
+			adapter: adapter({ pages: 'src/server/_static', assets: 'src/server/_static' }),
+			router: { type: 'hash' }
+		}),
+		devtoolsJson(),
+		cats()
+	],
+	build: { target: 'esnext' }
 });

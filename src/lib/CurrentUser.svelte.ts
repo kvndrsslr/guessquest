@@ -1,6 +1,6 @@
-import type { Choice, RoomData, UserData } from '$lib/app.svelte';
+import type { Choice, RoomData, UserData } from '#lib/app.svelte.js';
 import { page } from '$app/state';
-import type { NetworkClient } from '$lib/network';
+import type { NetworkClient } from '#lib/network.js';
 
 export class CurrentUser {
 	id: number = $state(0);

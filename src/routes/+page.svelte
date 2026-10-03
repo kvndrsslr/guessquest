@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import Hero from '$lib/components/Hero.svelte';
-	import { CurrentUser } from '$lib/CurrentUser.svelte';
+	import Hero from '#lib/components/Hero.svelte';
+	import { CurrentUser } from '#lib/CurrentUser.svelte.js';
 
 	const currentUser = new CurrentUser();
 

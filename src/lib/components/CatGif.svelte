@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Choice } from '$lib/app.svelte';
+	import type { Choice } from '#lib/app.svelte.js';
 	import { fade } from 'svelte/transition';
 	import allCats from 'virtual:cats';
 

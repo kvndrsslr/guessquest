@@ -3,7 +3,7 @@
 	import medievalSharpWoff2 from '@fontsource/medievalsharp/files/medievalsharp-latin-400-normal.woff2?url';
 	import { Tooltip } from 'bits-ui';
 	import { CopyIcon, HatGlassesIcon, CheckIcon, FolderGitIcon } from '@lucide/svelte';
-	import ActionTooltip from '$lib/components/ActionTooltip.svelte';
+	import ActionTooltip from '#lib/components/ActionTooltip.svelte';
 	import { fade } from 'svelte/transition';
 	import { beforeNavigate } from '$app/navigation';
 
@@ -12,15 +12,17 @@
 	let copySuccess = $state(false);
 	let isQuest = $state(window.location.hash.length > 1);
 
-	import logoSmall from '$lib/assets/logo-small.webp';
-	import logoSmallKitten from '$lib/assets/logo-small-kitten.webp';
-	import catHappy from '$lib/assets/cat-happy.webp';
-	import catOk from '$lib/assets/cat-ok.webp';
-	import monster from '$lib/assets/monster.webp';
-	import card from '$lib/assets/card.webp';
-	import { heroImages } from '$lib/heroImages';
+	import logoSmall from '#lib/assets/logo-small.webp';
+	import logoSmallKitten from '#lib/assets/logo-small-kitten.webp';
+	import catHappy from '#lib/assets/cat-happy.webp';
+	import catOk from '#lib/assets/cat-ok.webp';
+	import monster from '#lib/assets/monster.webp';
+	import card from '#lib/assets/card.webp';
+	import { heroImages } from '#lib/heroImages.js';
 
 	beforeNavigate((nav) => {
+		if (nav.shallow) return;
+
 		isQuest = !!nav.to?.params?.roomId;
 	});
 
@@ -146,7 +148,7 @@
 				--shadow: rgba(0, 0, 0, 1);
 			}
 
-			cursor: url('$lib/assets/cursor.webp?inline'), auto;
+			cursor: url('../lib/assets/cursor.webp?inline'), auto;
 
 			/* Style the scrollbars */
 			::-webkit-scrollbar {
@@ -179,7 +181,7 @@
 			padding: 0;
 			font-family: 'MedievalSharp', system-ui;
 			background-color: var(--bg);
-			background-image: url('$lib/assets/background-noise.svg?inline');
+			background-image: url('../lib/assets/background-noise.svg?inline');
 			background-blend-mode: soft-light;
 			box-shadow: 0 0 22.5vw var(--shadow) inset;
 			min-height: 100dvh;

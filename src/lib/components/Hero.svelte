@@ -1,7 +1,7 @@
 <script lang="ts">
-	import type { Choice } from '$lib/app.svelte';
-	import type { CurrentUser } from '$lib/CurrentUser.svelte';
-	import { heroImages } from '$lib/heroImages';
+	import type { Choice } from '#lib/app.svelte.js';
+	import type { CurrentUser } from '#lib/CurrentUser.svelte.js';
+	import { heroImages } from '#lib/heroImages.js';
 
 	type HeroProps = {
 		id: number;

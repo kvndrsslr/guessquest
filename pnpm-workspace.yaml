@@ -1,0 +1,6 @@
+allowBuilds:
+  '@parcel/watcher': true
+minimumReleaseAgeExclude:
+  - '@lucide/svelte@1.51.0'
+  - bits-ui@2.19.5
+  - eslint@10.12.0

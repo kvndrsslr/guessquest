@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { newQuest, reveal, room } from '$lib/app.svelte';
+	import { newQuest, reveal, room } from '#lib/app.svelte.js';
 
 	let label = $derived(
 		room.revealed ? 'Embark on a new Quest' : 'Click the Complexity Monster to Reveal'
@@ -65,7 +65,7 @@
 		transform: translateY(50px);
 		background-color: transparent;
 		border: none;
-		background-image: url('$lib/assets/monster.webp');
+		background-image: url('../assets/monster.webp');
 		background-repeat: no-repeat;
 		background-size: contain;
 		background-position: center;
@@ -74,7 +74,7 @@
 		position: relative;
 
 		&.revealed {
-			background-image: url('$lib/assets/cat-ok.webp');
+			background-image: url('../assets/cat-ok.webp');
 		}
 
 		.monster-hover-proxy {
