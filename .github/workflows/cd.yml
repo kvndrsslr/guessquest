@@ -11,18 +11,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
-      - name: Setup Zig
-        uses: mlugg/setup-zig@v2
-        with:
-          version: 0.17.0
+      # mlugg/setup-zig has no Node 24 release yet (v2.2.1 still targets Node 20),
+      # so install the toolchain directly. The version is read from build.zig.zon
+      # and the download is checksum-verified.
+      - name: Install Zig
+        run: |
+          set -euo pipefail
+          version=$(sed -n 's/.*\.minimum_zig_version = "\([^"]*\)".*/\1/p' build.zig.zon)
+          target="$(uname -m)-linux"
+          index=$(curl -fsSL https://ziglang.org/download/index.json)
+          tarball=$(jq -r --arg v "$version" --arg t "$target" '.[$v][$t].tarball' <<<"$index")
+          shasum=$(jq -r --arg v "$version" --arg t "$target" '.[$v][$t].shasum' <<<"$index")
+          curl -fsSL "$tarball" -o /tmp/zig.tar.xz
+          echo "$shasum  /tmp/zig.tar.xz" | sha256sum -c -
+          mkdir -p "$HOME/zig"
+          tar -xJf /tmp/zig.tar.xz -C "$HOME/zig" --strip-components=1
+          echo "$HOME/zig" >> "$GITHUB_PATH"
+          "$HOME/zig/zig" version
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 25
           cache: pnpm
