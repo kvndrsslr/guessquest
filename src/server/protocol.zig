@@ -536,11 +536,9 @@ test "parse join" {
         'R', 'o', 'o', 'm', '1', 0, // Room ID
         'U', 's', 'e', 'r', 0, // User name
     };
-    std.debug.print("Data: \n{any}\n", .{data});
     const msg = try Message.parse(&data, test_alloc);
     switch (msg) {
         .Join => |join| {
-            std.debug.print("Parsed Join: \n{any}\n", .{join});
             try expect(join.hero == 8);
             try expect(join.room_type == .StoryPoints);
             try expect(join.is_spectator == true);

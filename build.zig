@@ -51,10 +51,10 @@ pub fn build(b: *std.Build) !void {
     });
 
     const httpz = b.dependency("httpz", .{}).module("httpz");
-    const zul = b.dependency("zul", .{}).module("zul");
+    const zdt = b.dependency("zdt", .{}).module("zdt");
 
     exe_mod.addImport("httpz", httpz);
-    exe_mod.addImport("zul", zul);
+    exe_mod.addImport("zdt", zdt);
 
     // This creates another `std.Build.Step.Compile`, but this one builds an executable
     // rather than a static library.
@@ -149,7 +149,7 @@ pub fn build(b: *std.Build) !void {
         });
 
         t_exe_mod.addImport("httpz", httpz);
-        t_exe_mod.addImport("zul", zul);
+        t_exe_mod.addImport("zdt", zdt);
 
         const name = try std.mem.concat(b.allocator, u8, &[_][]const u8{ "guessquest-server-", try t.zigTriple(b.allocator) });
 

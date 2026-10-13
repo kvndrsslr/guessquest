@@ -27,27 +27,13 @@ The Zig version is pinned in four places and must stay in sync:
 - `Dockerfile` -> `zvm install <version>`
 - `README.md` -> "Build from Source"
 
-## Vendored Dependencies - Check Upstream, Then Un-Vendor
+## Dependencies
 
-`httpz` and `zul` (plus their transitive `metrics` and `websocket`) live in `vendor/` as path
-dependencies instead of being fetched from the Zig package manager, because none of them supported
-Zig 0.17.0 when this was last done. Each copy carries mechanical patches; see
-[`vendor/README.md`](vendor/README.md) for the package/commit table, the full patch list, and the
-un-vendoring checklist.
-
-Treat vendoring as temporary. When you touch dependencies, bump the Zig version, or do routine
-maintenance, check whether upstream has caught up:
-
-```sh
-curl -s https://raw.githubusercontent.com/karlseguin/http.zig/master/build.zig.zon | grep -E 'minimum_zig_version|fingerprint'
-curl -s https://api.github.com/repos/karlseguin/http.zig/commits?per_page=5 \
-  | jq -r '.[] | "\(.sha[0:12]) \(.commit.author.date) \(.commit.message | split("\n")[0])"'
-```
-
-Once a package supports the Zig version in `build.zig.zon`, un-vendor it: fetch the newer upstream
-archive with `zig fetch --save`, switch the dependency back to `.url` + `.hash`, re-apply only the
-patches that are still needed, delete the vendored directory, and verify with `zig build`,
-`zig build test` and `zig build all`. Once nothing is vendored, delete `vendor/README.md`.
+All third-party packages are fetched from their upstream repositories by the Zig package manager -
+`httpz` (https://github.com/karlseguin/http.zig) for the HTTP/WebSocket server and `zdt`
+(https://codeberg.org/FObersteiner/zdt) for UTC log timestamps. Both are pinned by commit in
+`build.zig.zon` (`.url` + `.hash`); bump them with `zig fetch --save <archive-url>` and verify with
+`zig build`, `zig build test` and `zig build all`.
 
 ## Frontend Migration Notes
 

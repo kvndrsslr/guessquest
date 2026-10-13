@@ -2,7 +2,7 @@ const std = @import("std");
 const httpz = @import("httpz");
 const ws = httpz.websocket;
 const options = @import("options");
-const zul = @import("zul");
+const zdt = @import("zdt");
 const prot = @import("protocol.zig");
 
 const Allocator = std.mem.Allocator;
@@ -508,12 +508,10 @@ fn logWithTimestamp(
     _ = scope; // not used
     const io = std.Options.debug_io;
     const now_ms = std.Io.Clock.real.now(io).toMilliseconds();
-    const ts = zul.DateTime.fromUnix(now_ms, .milliseconds) catch return;
+    const ts = zdt.Datetime.fromUnix(now_ms, .millisecond, null) catch return;
     var buf: [4096]u8 = @splat(0);
     var writer = std.Io.File.stdout().writerStreaming(io, &buf);
-    const date = ts.date();
-    const time = ts.time();
-    writer.interface.print("{d}-{d:0>2}-{d:0>2} {d:0>2}:{d:0>2}:{d:0>2} [", .{ date.year, date.month, date.day, time.hour, time.min, time.sec }) catch return;
+    writer.interface.print("{d}-{d:0>2}-{d:0>2} {d:0>2}:{d:0>2}:{d:0>2} [", .{ ts.year, ts.month, ts.day, ts.hour, ts.minute, ts.second }) catch return;
     for (message_level.asText()) |c| {
         writer.interface.writeByte(std.ascii.toUpper(c)) catch return;
     }

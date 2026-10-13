@@ -4,8 +4,14 @@
     .fingerprint = 0x77cb8245c95d6a5, // Changing this has security and trust implications.
     .minimum_zig_version = "0.17.0",
     .dependencies = .{
-        .zul = .{ .path = "vendor/zul" },
-        .httpz = .{ .path = "vendor/httpz" },
+        .httpz = .{
+            .url = "https://github.com/karlseguin/http.zig/archive/16bb1901bc5209cf61862e3b621316866afa97e1.tar.gz",
+            .hash = "httpz-0.0.0-PNVzrHIUCQAHq_nbu3c7A33Pvt1bwQj2dTfCfwE_Ivww",
+        },
+        .zdt = .{
+            .url = "https://codeberg.org/FObersteiner/zdt/archive/v0.10.5-master.tar.gz",
+            .hash = "zdt-0.10.5-xr0_vLTdEQAhd_L_T4WlU1cU2IFDBJhkS4s0lJNVLqfb",
+        },
     },
-    .paths = .{ "build.zig", "build.zig.zon", "src/server", "vendor" },
+    .paths = .{ "build.zig", "build.zig.zon", "src/server" },
 }

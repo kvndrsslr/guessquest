@@ -27,9 +27,8 @@ pnpm install
 pnpm run build
 ```
 
-The Zig server builds from [`vendor/`](vendor) - the `httpz` and `zul` dependencies (plus their own
-`metrics`/`websocket` dependencies) are vendored and patched for Zig 0.17.0 because upstream does not
-support it yet. See [`vendor/README.md`](vendor/README.md) for details.
+The Zig server builds entirely from upstream packages - `httpz` (HTTP/WebSocket) and `zdt`
+(date/time) are fetched and pinned by commit in `build.zig.zon`.
 
 #### Using Docker
 
