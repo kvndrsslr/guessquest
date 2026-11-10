@@ -61,7 +61,7 @@
 {#if loaded}
 	<div {id} class="container" transition:fade={{ duration: 500 }}>
 		<img {src} alt="Cat GIF" />
-		<p>Consensus: {choice}</p>
+		<p>Catsensus: {choice}</p>
 	</div>
 {/if}
 
