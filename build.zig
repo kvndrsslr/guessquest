@@ -69,17 +69,21 @@ pub fn build(b: *std.Build) !void {
     const static_dir_path = "_static";
     const io = b.graph.io;
 
-    // The configure logic below reads the _static directory, so the cached build
-    // configuration must be invalidated when its entries change (e.g. after the
-    // frontend rebuild rehashes asset filenames). Without this, a stale file list
-    // is reused and @embedFile() fails on files that no longer exist.
+    // The configure logic below reads the _static directory tree, so the cached build
+    // configuration must be invalidated when any of its entries change (e.g. after the
+    // frontend rebuild rehashes asset filenames). Without this, a stale file list is
+    // reused and @embedFile() fails on files that no longer exist.
+    // `dependOnDirectoryContents` is not recursive, so every walked directory must be
+    // registered individually - the rehashed assets live several levels deep.
     b.dependOnDirectoryContents(b.path(module_root ++ static_dir_path));
 
     const static_dir = try std.Io.Dir.cwd().openDir(io, module_root ++ static_dir_path, .{ .iterate = true });
     var walker = try static_dir.walk(b.allocator);
 
-    while (try walker.next(io)) |entry| if (entry.kind == .file) {
-        try files.append(b.allocator, b.dupe(entry.path));
+    while (try walker.next(io)) |entry| switch (entry.kind) {
+        .file => try files.append(b.allocator, b.dupe(entry.path)),
+        .directory => b.dependOnDirectoryContents(b.path(b.pathJoin(&.{ module_root ++ static_dir_path, entry.path }))),
+        else => {},
     };
 
     var options = b.addOptions();

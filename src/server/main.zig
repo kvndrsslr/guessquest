@@ -35,20 +35,15 @@ pub const std_options = std.Options{
     },
 };
 
-fn addCachingHeaders(res: *httpz.Response, content_type: ?httpz.ContentType) void {
-    const ct = content_type orelse return;
-
-    switch (ct) {
-        // Code assets - cache for 10 minutes
-        .CSS, .HTML, .JS, .JSON => {
-            res.headers.add("Cache-Control", "public, max-age=600");
-            res.headers.add("Expires", "10m");
-        },
-        else => {
-            // Everything else - cache for 30 days
-            res.headers.add("Cache-Control", "public, max-age=2592000");
-            res.headers.add("Expires", "30d");
-        },
+fn addCachingHeaders(res: *httpz.Response, path: []const u8) void {
+    // Content-hashed assets never change under the same name, so they can be cached
+    // forever. Everything else (index.html, favicons, robots.txt) is replaced on deploy
+    // and must be revalidated, otherwise clients boot a stale document whose asset URLs
+    // may already be gone.
+    if (std.mem.startsWith(u8, path, "_app/immutable/")) {
+        res.headers.add("Cache-Control", "public, max-age=31536000, immutable");
+    } else {
+        res.headers.add("Cache-Control", "no-cache");
     }
 }
 
@@ -196,7 +191,7 @@ const App = struct {
             res.body = embeddedFile;
             const content_type = httpz.ContentType.forFile(req.url.path[1..]);
             res.content_type = content_type;
-            addCachingHeaders(res, content_type);
+            addCachingHeaders(res, req.url.path[1..]);
             return;
         }
 
@@ -205,7 +200,7 @@ const App = struct {
         res.status = 200;
         res.body = embeddedIndex;
         res.content_type = .HTML;
-        addCachingHeaders(res, .HTML);
+        addCachingHeaders(res, "index.html");
     }
 
     // This is your application-specific wrapper around a websocket connection
