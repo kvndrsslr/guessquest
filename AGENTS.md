@@ -12,6 +12,7 @@ zig build start -- -p 8080      # run it (args are passed through to the binary)
 zig build test                  # unit tests (protocol + bit_io)
 zig build all                   # release cross-compile for every release target
 pnpm run dev                    # frontend + backend in parallel
+pnpm test                       # vitest unit tests (estimation codec)
 ```
 
 `zig build` fails if `src/server/_static` is missing, so always build the frontend first.

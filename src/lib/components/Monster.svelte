@@ -12,7 +12,7 @@
 			class="monster-hover-proxy"
 			onclick={(ev) => {
 				if (room.revealed) {
-					newQuest();
+					newQuest(room.roomType);
 				} else {
 					reveal();
 				}

@@ -72,7 +72,7 @@ An example Nginx configuration is provided in the repository.
 
 ## Roadmap
 
-- [ ] Implement timebox estimation mode (in Person Days, not Points)
+- [x] Implement timebox estimation mode (in Person Days, not Points)
 
 ## Contributing
 

@@ -5,14 +5,17 @@
 	import { goto } from '$app/navigation';
 	import Hero from '#lib/components/Hero.svelte';
 	import Card from '#lib/components/Card.svelte';
+	import EstimateInput from '#lib/components/EstimateInput.svelte';
+	import ModeSwitch from '#lib/components/ModeSwitch.svelte';
 	import Monster from '#lib/components/Monster.svelte';
+	import { RoomType } from '#lib/network.js';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { page } from '$app/state';
 	import { flip } from 'svelte/animate';
 	import CatGif from '#lib/components/CatGif.svelte';
 	import { resolve } from '$app/paths';
 
-	const options = [1, 2, 3, 5, 8, 13, 21, 34, '∞', '?'];
+	const pointOptions = [1, 2, 3, 5, 8, 13, 21, 34, '∞', '?'];
 
 	const lg = new MediaQuery('(min-width: 1150px)', true);
 	const md = new MediaQuery('(min-width: 860px)', false);
@@ -99,6 +102,8 @@
 />
 
 {#if room.connected}
+	<ModeSwitch />
+
 	<div class="hero-container" style={`--rows: ${rows}`}>
 		{#if hasConsensus}
 			<CatGif id="cat" choice={nonNullChoices[0]} />
@@ -115,15 +120,23 @@
 		{/each}
 	</div>
 
-	<div class="choices-container" class:revealed={room.revealed}>
+	<div
+		class="choices-container"
+		class:revealed={room.revealed}
+		class:person-days={room.roomType === RoomType.PersonDays}
+	>
 		<div class="monster">
 			<Monster />
 		</div>
 		{#if !currentUser.spectator}
 			<div class="choices">
-				{#each options ?? [] as option (option)}
-					<Card choice={option} />
-				{/each}
+				{#if room.roomType === RoomType.PersonDays}
+					<EstimateInput />
+				{:else}
+					{#each pointOptions as option (option)}
+						<Card choice={option} />
+					{/each}
+				{/if}
 			</div>
 		{/if}
 	</div>
@@ -169,6 +182,16 @@
 
 	.revealed .monster {
 		translate: 20px 0;
+	}
+
+	// The estimate form is centred, so park the monster bottom-left (the position it takes
+	// when revealed) and keep the form's row clear of it.
+	.person-days .monster {
+		translate: 20px 0;
+	}
+
+	.person-days .choices {
+		padding-left: 390px;
 	}
 
 	.choices {

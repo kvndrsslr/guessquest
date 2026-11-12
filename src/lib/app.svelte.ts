@@ -21,10 +21,16 @@ export type RoomData = {
 	spectators: UserData[];
 };
 
+// Carried over from the landing form by the room page's join flow; consumed once so
+// direct-link joins start on StoryPoints and let the server's Sync correct them.
+const initialRoomType =
+	sessionStorage.getItem('roomType') === '1' ? RoomType.PersonDays : RoomType.StoryPoints;
+sessionStorage.removeItem('roomType');
+
 export const room: RoomData = $state({
 	connected: false,
 	quest: 0,
-	roomType: RoomType.StoryPoints,
+	roomType: initialRoomType,
 	revealed: false,
 	otherUsers: [],
 	spectators: []
@@ -72,9 +78,9 @@ export function reveal() {
 	net.sendReveal();
 }
 
-export function newQuest(roomType?: RoomType) {
+export function newQuest(roomType: RoomType) {
 	room.quest += 1;
-	room.roomType = roomType ?? RoomType.StoryPoints;
+	room.roomType = roomType;
 	room.revealed = false;
 	currentUser.resetChoice();
 

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Choice } from '#lib/app.svelte.js';
+	import { formatChoice } from '#lib/estimation.js';
 	import { fade } from 'svelte/transition';
 	import allCats from 'virtual:cats';
 
@@ -61,7 +62,7 @@
 {#if loaded}
 	<div {id} class="container" transition:fade={{ duration: 500 }}>
 		<img {src} alt="Cat GIF" />
-		<p>Catsensus: {choice}</p>
+		<p>Catsensus: {formatChoice(choice)}</p>
 	</div>
 {/if}
 

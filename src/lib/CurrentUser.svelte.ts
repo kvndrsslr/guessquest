@@ -69,9 +69,15 @@ export class CurrentUser {
 		if (!this.#room) {
 			return;
 		}
-		if (!this.#room.revealed && this.#choice === choice) {
+		// Pair choices (person-days estimates) are re-created on every vote, so compare
+		// them by value; otherwise resubmitting the same estimate would never toggle.
+		const unchanged =
+			Array.isArray(choice) && Array.isArray(this.#choice)
+				? choice[0] === this.#choice[0] && choice[1] === this.#choice[1]
+				: this.#choice === choice;
+		if (!this.#room.revealed && unchanged) {
 			this.#choice = null;
-		} else if (this.#room.revealed && this.#choice === choice) {
+		} else if (this.#room.revealed && unchanged) {
 			return;
 		} else {
 			this.edited = this.#room.revealed;

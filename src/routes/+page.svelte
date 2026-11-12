@@ -9,6 +9,7 @@
 	let sessionName: string = $state('');
 	let name: string = $state('');
 	let rememberMe: boolean = $state(true);
+	let estimationMode: string = $state('points');
 
 	$effect(() => {
 		currentUser.setRememberMe(rememberMe);
@@ -18,6 +19,7 @@
 		e.preventDefault();
 		const asSpectator = (e.submitter as HTMLButtonElement)?.hasAttribute('data-spectator');
 		if (sessionName) {
+			sessionStorage.setItem('roomType', estimationMode === 'days' ? '1' : '0');
 			goto(resolve(`/${sessionName}/${asSpectator ? 'spectator' : ''}`));
 		}
 	}
@@ -39,6 +41,17 @@
 		autofocus
 		required
 	/>
+	<fieldset class="mode">
+		<legend>Estimation mode</legend>
+		<label>
+			<input type="radio" name="estimationMode" value="points" bind:group={estimationMode} />
+			Story Points
+		</label>
+		<label>
+			<input type="radio" name="estimationMode" value="days" bind:group={estimationMode} />
+			Person Days
+		</label>
+	</fieldset>
 	<div class="buttons">
 		<button type="submit">Join</button>
 		<button type="submit" data-spectator>Spectate</button>
@@ -62,6 +75,26 @@
 		padding: 0.5em;
 		border: 1px solid #ccc;
 		border-radius: 4px;
+	}
+
+	.mode {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.75em;
+		margin: 0;
+		padding: 0.5em 0.75em;
+		border: 1px solid #ccc;
+		border-radius: 4px;
+
+		legend {
+			padding: 0 0.25em;
+		}
+
+		label {
+			display: flex;
+			align-items: center;
+			gap: 0.35em;
+		}
 	}
 
 	.buttons {

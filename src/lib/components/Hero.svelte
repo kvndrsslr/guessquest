@@ -2,6 +2,7 @@
 	import type { Choice } from '#lib/app.svelte.js';
 	import type { CurrentUser } from '#lib/CurrentUser.svelte.js';
 	import { heroImages } from '#lib/heroImages.js';
+	import { formatChoice } from '#lib/estimation.js';
 
 	type HeroProps = {
 		id: number;
@@ -72,7 +73,7 @@
 
 	{#if choice !== null && choice !== true}
 		<div class="choice" class:edited={currentUser?.edited}>
-			{choice}
+			{formatChoice(choice)}
 		</div>
 	{/if}
 </div>
@@ -111,12 +112,15 @@
 		}
 	}
 	.choice {
-		width: 33px;
+		min-width: 33px;
+		width: auto;
 		height: 33px;
 		line-height: 35px;
 		border: 3px solid var(--highlight);
-		border-radius: 100%;
-		padding: 5px;
+		border-radius: 100px;
+		padding: 0 8px;
+		box-sizing: border-box;
+		white-space: nowrap;
 		background-color: var(--btn-secondary);
 		text-align: center;
 		color: var(--text-primary);

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { currentUser, type Choice } from '#lib/app.svelte.js';
+	import { formatChoice } from '#lib/estimation.js';
 
 	type CardProps = {
 		choice: Choice;
@@ -14,7 +15,7 @@
 	class:active={currentUser.choice === props.choice}
 	onclick={() => (currentUser.choice = props.choice)}
 >
-	{props.choice}
+	{formatChoice(props.choice)}
 </button>
 
 <style lang="scss">

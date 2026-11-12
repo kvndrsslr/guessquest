@@ -630,3 +630,106 @@ test "reject poke with string exceeding max length" {
     // No null terminator — streamDelimiterEnding reads to end of fixed reader
     try std.testing.expectError(error.InvalidData, Message.parse(&data, test_alloc));
 }
+
+test "parse join with person days room type and pair choice" {
+    const data = [_]u8{
+        0b10000000, // Join + hero low nibble (8)
+        0b10010000, // hero high nibble (0) + room_type (1) + spectator (0) + choice type TwoNumbers (2)
+        8, 8, // choice pair: quarter-units, 2 people for 2 days each
+        'R', 'o', 'o', 'm', '1', 0, // Room ID
+        'U', 's', 'e', 'r', 0, // User name
+    };
+    const msg = try Message.parse(&data, test_alloc);
+    switch (msg) {
+        .Join => |join| {
+            try expect(join.hero == 8);
+            try expect(join.room_type == .PersonDays);
+            try expect(join.is_spectator == false);
+            switch (join.choice) {
+                .TwoNumbers => |pair| {
+                    try expect(pair[0] == 8);
+                    try expect(pair[1] == 8);
+                },
+                else => try expect(false),
+            }
+            try expect(std.mem.eql(u8, join.room_id, "Room1"));
+            try expect(std.mem.eql(u8, join.name, "User"));
+            test_alloc.free(join.room_id);
+            test_alloc.free(join.name);
+        },
+        else => try expect(false),
+    }
+}
+
+test "serialize reset room round trips person days" {
+    var msg: Message = .{ .ResetRoom = .PersonDays };
+    var out: std.Io.Writer.Allocating = .init(test_alloc);
+    defer out.deinit();
+    try msg.serialize(&out.writer, 0);
+
+    const parsed = try Message.parse(out.written(), test_alloc);
+    try switch (parsed) {
+        .ResetRoom => |room_type| expect(room_type == .PersonDays),
+        else => expect(false),
+    };
+}
+
+test "serialize sync round trips room type and pair choices" {
+    var users = [_]UserData{
+        .{
+            .name = "Ann",
+            .user_id = 1,
+            .hero = 2,
+            .choice = .{ .TwoNumbers = .{ 8, 8 } },
+            .is_spectator = false,
+        },
+        .{
+            .name = "Bob",
+            .user_id = 2,
+            .hero = 3,
+            .choice = .{ .SingleString = "?" },
+            .is_spectator = false,
+            .edited = true,
+        },
+    };
+    var msg: Message = .{
+        .Sync = .{
+            .room_type = .PersonDays,
+            .is_revealed = false,
+            .quest = 3,
+            .users = &users,
+        },
+    };
+    var out: std.Io.Writer.Allocating = .init(test_alloc);
+    defer out.deinit();
+    try msg.serialize(&out.writer, 1);
+
+    // Message.parse only accepts client -> server messages, so decode the wire layout the
+    // browser reads (src/lib/network.ts, MessageType.Sync) with the same bit reader instead.
+    var bytes_reader = std.Io.Reader.fixed(out.written());
+    var bit_reader = bit_io.bitReader(.little, &bytes_reader);
+
+    try expect(try bit_reader.readBitsNoEof(u4, 4) == @backingInt(MessageType.Sync));
+    try expect(try bit_reader.readBitsNoEof(u4, 4) == 1); // user_id
+    try expect(try bit_reader.readBitsNoEof(u1, 1) == @backingInt(RoomType.PersonDays));
+    try expect(try bit_reader.readBitsNoEof(u1, 1) == 0); // is_revealed
+    try expect(try bit_reader.readBitsNoEof(u6, 6) == users.len);
+    try expect(try bit_reader.readBitsNoEof(u8, 8) == 3); // quest
+
+    try expect(try bit_reader.readBitsNoEof(u4, 4) == 1); // user ids
+    try expect(try bit_reader.readBitsNoEof(u4, 4) == 2);
+    try expect(try bit_reader.readBitsNoEof(u8, 8) == 2); // heroes
+    try expect(try bit_reader.readBitsNoEof(u8, 8) == 3);
+    try expect(try bit_reader.readBitsNoEof(u1, 1) == 0); // spectator flags
+    try expect(try bit_reader.readBitsNoEof(u1, 1) == 0);
+    try expect(try bit_reader.readBitsNoEof(u1, 1) == 0); // edited flags
+    try expect(try bit_reader.readBitsNoEof(u1, 1) == 1);
+    try expect(try bit_reader.readBitsNoEof(u2, 2) == @backingInt(ChoiceType.TwoNumbers));
+    try expect(try bit_reader.readBitsNoEof(u2, 2) == @backingInt(ChoiceType.SingleString));
+
+    // TwoNumbers payload: quarter-unit pair, passed through opaquely
+    try expect(try bit_reader.readBitsNoEof(u8, 8) == 8);
+    try expect(try bit_reader.readBitsNoEof(u8, 8) == 8);
+
+    try expect(std.mem.eql(u8, bytes_reader.buffered(), "?\x00Ann\x00Bob\x00"));
+}
