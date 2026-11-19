@@ -4,7 +4,8 @@ import { MessageReader, MessageWriter } from '#lib/bit-io.js';
 
 export enum RoomType {
 	StoryPoints = 0,
-	PersonDays = 1
+	PersonDays = 1,
+	Opinion = 2
 }
 
 enum ChoiceType {
@@ -210,7 +211,7 @@ export class NetworkClient {
 						break;
 					}
 					case MessageType.ResetRoom: {
-						const roomType = reader.readBits(1, (n) => n as RoomType);
+						const roomType = reader.readBits(2, (n) => n as RoomType);
 						room.quest += 1;
 						room.roomType = roomType;
 						room.revealed = false;
@@ -224,7 +225,7 @@ export class NetworkClient {
 					}
 					case MessageType.Sync: {
 						currentUser.id = reader.readBits(4);
-						room.roomType = reader.readBits(1, (n) => n as RoomType);
+						room.roomType = reader.readBits(2, (n) => n as RoomType);
 						room.revealed = reader.readBits(1, Boolean);
 						const userCount = reader.readBits(6);
 						room.quest = reader.readBits(8);
@@ -304,7 +305,7 @@ export class NetworkClient {
 		this.#send((writer) => {
 			writer.writeBits(4, MessageType.Join);
 			writer.writeBits(8, currentUser.hero);
-			writer.writeBits(1, room.roomType);
+			writer.writeBits(2, room.roomType);
 			writer.writeBits(1, +currentUser.spectator);
 			writeChoice(writer, currentUser.choice);
 			writer.writeString(page.params.roomId!.substring(0, 18));
@@ -321,7 +322,7 @@ export class NetworkClient {
 	sendResetRoom({ roomType }: { roomType: RoomType }) {
 		this.#send((writer) => {
 			writer.writeBits(4, MessageType.ResetRoom);
-			writer.writeBits(1, roomType);
+			writer.writeBits(2, roomType);
 		});
 	}
 

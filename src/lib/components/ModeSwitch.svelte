@@ -4,7 +4,8 @@
 
 	const modes = [
 		{ type: RoomType.StoryPoints, label: 'Story Points' },
-		{ type: RoomType.PersonDays, label: 'Person Days' }
+		{ type: RoomType.PersonDays, label: 'Person Days' },
+		{ type: RoomType.Opinion, label: 'Opinion' }
 	];
 
 	function select(type: RoomType) {

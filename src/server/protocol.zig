@@ -7,9 +7,10 @@ const Parsed = std.json.Parsed;
 
 const log = std.log.scoped(.message);
 
-pub const RoomType = enum(u1) {
+pub const RoomType = enum(u2) {
     StoryPoints = 0,
     PersonDays = 1,
+    Opinion = 2,
 };
 
 const ChoiceType = enum(u2) {
@@ -147,6 +148,11 @@ pub const Message = union(MessageType) {
         }
     }
 
+    fn readRoomType(bit_reader: *bit_io.BitReader(.little)) !RoomType {
+        const raw = try bit_reader.readBitsNoEof(u2, 2);
+        return std.enums.fromInt(RoomType, raw) orelse return MessageError.InvalidData;
+    }
+
     fn parseChoice(
         bit_reader: *bit_io.BitReader(.little),
         bytes_reader: *std.Io.Reader,
@@ -163,6 +169,8 @@ pub const Message = union(MessageType) {
                 var alloc_writer = std.Io.Writer.Allocating.init(alloc);
                 defer alloc_writer.deinit();
                 _ = try bytes_reader.streamDelimiterEnding(&alloc_writer.writer, 0);
+                // streamDelimiterEnding leaves the terminator buffered; skip it so the next field (Join room_id) starts after it.
+                bytes_reader.toss(@min(1, bytes_reader.bufferedLen()));
                 const choice = try alloc_writer.toOwnedSlice();
                 return .{ .SingleString = choice };
             },
@@ -202,7 +210,7 @@ pub const Message = union(MessageType) {
             },
             // simple
             .ResetRoom => {
-                const room_type: RoomType = @enumFromInt(try bit_reader.readBitsNoEof(u1, 1));
+                const room_type = try readRoomType(&bit_reader);
                 return .{ .ResetRoom = room_type };
             },
             .UpdateUserHero => {
@@ -238,7 +246,7 @@ pub const Message = union(MessageType) {
             // complex
             .Join => {
                 const hero: u8 = try bit_reader.readBitsNoEof(u8, 8);
-                const room_type: RoomType = @enumFromInt(try bit_reader.readBitsNoEof(u1, 1));
+                const room_type = try readRoomType(&bit_reader);
                 const is_spectator: bool = @as(bool, @bitCast(try bit_reader.readBitsNoEof(u1, 1)));
                 const choice = try parseChoice(&bit_reader, &bytes_reader, alloc);
 
@@ -284,7 +292,7 @@ pub const Message = union(MessageType) {
 
         switch (self.*) {
             .ResetRoom => |room_type| {
-                try bit_writer.writeBits(@intFromEnum(room_type), 1);
+                try bit_writer.writeBits(@intFromEnum(room_type), 2);
             },
             .UpdateUserHero => |hero| {
                 try bit_writer.writeBits(user_id, 4);
@@ -352,7 +360,7 @@ pub const Message = union(MessageType) {
             },
             .Sync => |data| {
                 try bit_writer.writeBits(user_id, 4);
-                try bit_writer.writeBits(@intFromEnum(data.room_type), 1);
+                try bit_writer.writeBits(@intFromEnum(data.room_type), 2);
                 try bit_writer.writeBits(@intFromBool(data.is_revealed), 1);
                 try bit_writer.writeBits(data.users.len, 6);
                 try bit_writer.writeBits(data.quest, 8);
@@ -437,6 +445,15 @@ test "parse reset room" {
         .ResetRoom => |rt| expect(rt == .PersonDays),
         else => expect(false),
     };
+    data[0] = 0b00100010;
+    const msg3 = try Message.parse(&data, test_alloc);
+    try switch (msg3) {
+        .ResetRoom => |rt| expect(rt == .Opinion),
+        else => expect(false),
+    };
+    // 3 is not a valid RoomType
+    data[0] = 0b00110010;
+    try std.testing.expectError(error.InvalidData, Message.parse(&data, test_alloc));
 }
 
 test "parse update user hero" {
@@ -530,9 +547,10 @@ test "parse poke" {
 
 test "parse join" {
     const data = [_]u8{
-        0b10000000,
-        0b00100000,
-        0b10000010,
+        0b10000000, // Join + hero bits 0-3 (8)
+        0b01000000, // hero bits 4-7 (0) + room_type StoryPoints (0) + spectator (1) + choice_type bit0 (0)
+        0b00000000, // choice_type bit1 (0) -> SingleNumber
+        0b10000010, // choice value (130)
         'R', 'o', 'o', 'm', '1', 0, // Room ID
         'U', 's', 'e', 'r', 0, // User name
     };
@@ -613,9 +631,10 @@ test "reject name with invalid UTF-8" {
 test "reject join with room_id exceeding max length" {
     // Build a Join message with a 19-char room_id
     const data = [_]u8{
-        0b10000000, // Join + hero high nibble
-        0b00100000, // hero low + room_type + spectator
-        0b10000010, // choice (SingleNumber = 130)
+        0b10000000, // Join + hero bits 0-3 (8)
+        0b01000000, // hero bits 4-7 (0) + room_type StoryPoints (0) + spectator (1) + choice_type bit0 (0)
+        0b00000000, // choice_type bit1 (0) -> SingleNumber
+        0b10000010, // choice value (130)
     } ++ "1234567890123456789".* ++ [_]u8{0} // room_id: 19 chars
     ++ "Ok".* ++ [_]u8{0}; // name: 2 chars
     try std.testing.expectError(error.InvalidData, Message.parse(&data, test_alloc));
@@ -633,8 +652,9 @@ test "reject poke with string exceeding max length" {
 
 test "parse join with person days room type and pair choice" {
     const data = [_]u8{
-        0b10000000, // Join + hero low nibble (8)
-        0b10010000, // hero high nibble (0) + room_type (1) + spectator (0) + choice type TwoNumbers (2)
+        0b10000000, // Join + hero bits 0-3 (8)
+        0b00010000, // hero bits 4-7 (0) + room_type PersonDays (1) + spectator (0) + choice_type bit0 (0)
+        0b00000001, // choice_type bit1 (1) -> TwoNumbers
         8, 8, // choice pair: quarter-units, 2 people for 2 days each
         'R', 'o', 'o', 'm', '1', 0, // Room ID
         'U', 's', 'e', 'r', 0, // User name
@@ -649,6 +669,37 @@ test "parse join with person days room type and pair choice" {
                 .TwoNumbers => |pair| {
                     try expect(pair[0] == 8);
                     try expect(pair[1] == 8);
+                },
+                else => try expect(false),
+            }
+            try expect(std.mem.eql(u8, join.room_id, "Room1"));
+            try expect(std.mem.eql(u8, join.name, "User"));
+            test_alloc.free(join.room_id);
+            test_alloc.free(join.name);
+        },
+        else => try expect(false),
+    }
+}
+
+test "parse join with opinion room type and string choice" {
+    const data = [_]u8{
+        0b10000000, // Join + hero bits 0-3 (8)
+        0b10100000, // hero bits 4-7 (0) + room_type Opinion (2) + spectator (0) + choice_type bit0 (1)
+        0b00000000, // choice_type bit1 (0) -> SingleString
+        0xF0, 0x9F, 0x91, 0x8D, 0, // choice "👍"
+        'R', 'o', 'o', 'm', '1', 0, // Room ID
+        'U', 's', 'e', 'r', 0, // User name
+    };
+    const msg = try Message.parse(&data, test_alloc);
+    switch (msg) {
+        .Join => |join| {
+            try expect(join.hero == 8);
+            try expect(join.room_type == .Opinion);
+            try expect(join.is_spectator == false);
+            switch (join.choice) {
+                .SingleString => |str| {
+                    try expect(std.mem.eql(u8, str, "👍"));
+                    test_alloc.free(str);
                 },
                 else => try expect(false),
             }
@@ -711,7 +762,7 @@ test "serialize sync round trips room type and pair choices" {
 
     try expect(try bit_reader.readBitsNoEof(u4, 4) == @backingInt(MessageType.Sync));
     try expect(try bit_reader.readBitsNoEof(u4, 4) == 1); // user_id
-    try expect(try bit_reader.readBitsNoEof(u1, 1) == @backingInt(RoomType.PersonDays));
+    try expect(try bit_reader.readBitsNoEof(u2, 2) == @backingInt(RoomType.PersonDays));
     try expect(try bit_reader.readBitsNoEof(u1, 1) == 0); // is_revealed
     try expect(try bit_reader.readBitsNoEof(u6, 6) == users.len);
     try expect(try bit_reader.readBitsNoEof(u8, 8) == 3); // quest
@@ -726,6 +777,9 @@ test "serialize sync round trips room type and pair choices" {
     try expect(try bit_reader.readBitsNoEof(u1, 1) == 1);
     try expect(try bit_reader.readBitsNoEof(u2, 2) == @backingInt(ChoiceType.TwoNumbers));
     try expect(try bit_reader.readBitsNoEof(u2, 2) == @backingInt(ChoiceType.SingleString));
+
+    // The 2-bit room type shifted the header off a byte boundary; clients align before payload reads.
+    bit_reader.alignToByte();
 
     // TwoNumbers payload: quarter-unit pair, passed through opaquely
     try expect(try bit_reader.readBitsNoEof(u8, 8) == 8);

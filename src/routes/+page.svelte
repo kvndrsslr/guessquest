@@ -9,7 +9,8 @@
 	let sessionName: string = $state('');
 	let name: string = $state('');
 	let rememberMe: boolean = $state(true);
-	let estimationMode: string = $state('points');
+	// RoomType wire ids (src/lib/network.ts); importing the enum would load app.svelte.ts, which opens the room socket and consumes the stored roomType.
+	let roomType: string = $state('0');
 
 	$effect(() => {
 		currentUser.setRememberMe(rememberMe);
@@ -19,7 +20,7 @@
 		e.preventDefault();
 		const asSpectator = (e.submitter as HTMLButtonElement)?.hasAttribute('data-spectator');
 		if (sessionName) {
-			sessionStorage.setItem('roomType', estimationMode === 'days' ? '1' : '0');
+			sessionStorage.setItem('roomType', roomType);
 			goto(resolve(`/${sessionName}/${asSpectator ? 'spectator' : ''}`));
 		}
 	}
@@ -44,12 +45,16 @@
 	<fieldset class="mode">
 		<legend>Estimation mode</legend>
 		<label>
-			<input type="radio" name="estimationMode" value="points" bind:group={estimationMode} />
+			<input type="radio" name="estimationMode" value="0" bind:group={roomType} />
 			Story Points
 		</label>
 		<label>
-			<input type="radio" name="estimationMode" value="days" bind:group={estimationMode} />
+			<input type="radio" name="estimationMode" value="1" bind:group={roomType} />
 			Person Days
+		</label>
+		<label>
+			<input type="radio" name="estimationMode" value="2" bind:group={roomType} />
+			Opinion
 		</label>
 	</fieldset>
 	<div class="buttons">

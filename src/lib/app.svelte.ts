@@ -23,8 +23,9 @@ export type RoomData = {
 
 // Carried over from the landing form by the room page's join flow; consumed once so
 // direct-link joins start on StoryPoints and let the server's Sync correct them.
+const storedRoomType = Number(sessionStorage.getItem('roomType'));
 const initialRoomType =
-	sessionStorage.getItem('roomType') === '1' ? RoomType.PersonDays : RoomType.StoryPoints;
+	storedRoomType in RoomType ? (storedRoomType as RoomType) : RoomType.StoryPoints;
 sessionStorage.removeItem('roomType');
 
 export const room: RoomData = $state({

@@ -16,6 +16,7 @@
 	import { resolve } from '$app/paths';
 
 	const pointOptions = [1, 2, 3, 5, 8, 13, 21, 34, '∞', '?'];
+	const opinionOptions = ['👍', '👎', '?'];
 
 	const lg = new MediaQuery('(min-width: 1150px)', true);
 	const md = new MediaQuery('(min-width: 860px)', false);
@@ -132,6 +133,10 @@
 			<div class="choices">
 				{#if room.roomType === RoomType.PersonDays}
 					<EstimateInput />
+				{:else if room.roomType === RoomType.Opinion}
+					{#each opinionOptions as option (option)}
+						<Card choice={option} />
+					{/each}
 				{:else}
 					{#each pointOptions as option (option)}
 						<Card choice={option} />
